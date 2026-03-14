@@ -5,6 +5,7 @@ struct GalleryView: View {
     @StateObject private var galleryService = GalleryService()
     @State private var selectedIDs: Set<String> = []
     @State private var showUpload = false
+    @State private var showUploadConfirm = false
 
     var allSelected: Bool {
         !galleryService.detectedVideos.isEmpty &&
@@ -38,6 +39,14 @@ struct GalleryView: View {
             UploadView(
                 videos: galleryService.detectedVideos.filter { selectedIDs.contains($0.id) }
             )
+        }
+        .alert("영상 업로드", isPresented: $showUploadConfirm) {
+            Button("업로드 시작", role: .none) {
+                showUpload = true
+            }
+            Button("취소", role: .cancel) { }
+        } message: {
+            Text("\(selectedIDs.count)개 영상을 서버에 업로드합니다.\nWi-Fi 연결을 권장합니다.")
         }
     }
 
@@ -94,7 +103,7 @@ struct GalleryView: View {
             VStack(spacing: 0) {
                 Divider().overlay(Color.white.opacity(0.1))
                 Button {
-                    showUpload = true
+                    showUploadConfirm = true
                 } label: {
                     HStack(spacing: 8) {
                         if selectedIDs.isEmpty {

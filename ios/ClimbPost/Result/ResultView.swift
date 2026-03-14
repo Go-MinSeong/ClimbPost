@@ -9,6 +9,7 @@ private func fullURL(_ path: String?) -> URL? {
 struct ResultView: View {
     @StateObject private var viewModel: ResultViewModel
     @State private var selectedClip: Clip?
+    @State private var showCarousel = false
 
     init(sessionId: String) {
         _viewModel = StateObject(wrappedValue: ResultViewModel(sessionId: sessionId))
@@ -39,8 +40,27 @@ struct ResultView: View {
         }
         .background(AppColor.background)
         .navigationTitle("분석 결과")
+        .overlay(alignment: .bottom) {
+            if !viewModel.filteredClips.isEmpty {
+                Button {
+                    showCarousel = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "square.and.arrow.up")
+                        Text("공유할 클립 선택")
+                    }
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .shadow(color: AppColor.accent.opacity(0.4), radius: 12, y: 4)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 16)
+            }
+        }
         .navigationDestination(item: $selectedClip) { clip in
             ClipDetailView(clip: clip, sessionId: viewModel.sessionId)
+        }
+        .navigationDestination(isPresented: $showCarousel) {
+            CarouselView(sessionId: viewModel.sessionId)
         }
         .task {
             await viewModel.fetchClips()
