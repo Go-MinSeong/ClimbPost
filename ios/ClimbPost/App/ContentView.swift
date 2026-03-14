@@ -21,6 +21,7 @@ struct ContentView: View {
 
 struct MainView: View {
     @EnvironmentObject var authState: AuthState
+    @State private var showGallery = false
 
     var body: some View {
         NavigationStack {
@@ -41,6 +42,19 @@ struct MainView: View {
                 Text("Ready to analyze your climbing videos")
                     .font(.body)
                     .foregroundStyle(.secondary)
+
+                Button {
+                    showGallery = true
+                } label: {
+                    Label("Scan Today's Videos", systemImage: "video.badge.plus")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                }
+                .padding(.horizontal)
             }
             .navigationTitle("Home")
             .toolbar {
@@ -49,6 +63,9 @@ struct MainView: View {
                         Task { await authState.signOut() }
                     }
                 }
+            }
+            .navigationDestination(isPresented: $showGallery) {
+                GalleryView()
             }
         }
     }
