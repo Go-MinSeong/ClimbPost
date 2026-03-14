@@ -39,29 +39,21 @@ struct CreateSessionRequest: Codable {
 }
 
 struct CreateSessionResponse: Codable {
-    let sessionId: String
-
-    enum CodingKeys: String, CodingKey {
-        case sessionId = "session_id"
-    }
+    let id: String
 }
 
 struct UploadResponse: Codable {
-    let rawVideoId: String
-    let fileUrl: String
+    let id: String
+    let fileUrl: String?
 
     enum CodingKeys: String, CodingKey {
-        case rawVideoId = "raw_video_id"
+        case id
         case fileUrl = "file_url"
     }
 }
 
 struct StartAnalysisResponse: Codable {
-    let jobId: String
-
-    enum CodingKeys: String, CodingKey {
-        case jobId = "job_id"
-    }
+    let id: String
 }
 
 // MARK: - Analysis
@@ -82,23 +74,35 @@ struct AnalysisStatus: Codable {
 
 struct Clip: Codable, Identifiable {
     let id: String
-    let sessionId: String
+    let rawVideoId: String
+    let gymId: String?
     let difficulty: String?
+    let tapeColor: String?
     let result: String?
     let isMe: Bool?
     let startTime: Double?
     let endTime: Double?
+    let durationSec: Double?
     let thumbnailUrl: String?
+    let clipUrl: String?
+    let editedUrl: String?
+    let createdAt: String?
 
     enum CodingKeys: String, CodingKey {
         case id
-        case sessionId = "session_id"
+        case rawVideoId = "raw_video_id"
+        case gymId = "gym_id"
         case difficulty
+        case tapeColor = "tape_color"
         case result
         case isMe = "is_me"
         case startTime = "start_time"
         case endTime = "end_time"
+        case durationSec = "duration_sec"
         case thumbnailUrl = "thumbnail_url"
+        case clipUrl = "clip_url"
+        case editedUrl = "edited_url"
+        case createdAt = "created_at"
     }
 }
 
@@ -106,10 +110,6 @@ struct ClipFilter {
     var difficulty: String?
     var result: String?
     var isMe: Bool?
-}
-
-struct ClipsResponse: Codable {
-    let clips: [Clip]
 }
 
 // MARK: - Push

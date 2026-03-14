@@ -10,6 +10,7 @@ protocol APIClientProtocol {
     func uploadVideo(sessionId: String, fileURL: URL, progress: @escaping (Double) -> Void) async throws -> UploadResponse
     func startAnalysis(sessionId: String) async throws -> StartAnalysisResponse
     func getAnalysisStatus(sessionId: String) async throws -> AnalysisStatus
+    func getAllClips() async throws -> [Clip]
     func getClips(sessionId: String, filters: ClipFilter?) async throws -> [Clip]
     func registerPushToken(_ token: String) async throws
 }
@@ -114,6 +115,10 @@ final class APIClient: APIClientProtocol {
 
     // MARK: - Clips
 
+    func getAllClips() async throws -> [Clip] {
+        return try await get("/clips", authenticated: true)
+    }
+
     func getClips(sessionId: String, filters: ClipFilter?) async throws -> [Clip] {
         var queryItems = [URLQueryItem(name: "session_id", value: sessionId)]
         if let difficulty = filters?.difficulty {
@@ -126,8 +131,7 @@ final class APIClient: APIClientProtocol {
             queryItems.append(URLQueryItem(name: "is_me", value: isMe ? "true" : "false"))
         }
 
-        let response: ClipsResponse = try await get("/clips", queryItems: queryItems, authenticated: true)
-        return response.clips
+        return try await get("/clips", queryItems: queryItems, authenticated: true)
     }
 
     // MARK: - Push
