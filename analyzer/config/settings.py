@@ -5,6 +5,8 @@ PIPELINE_STAGES = [
     "analyzer.clipper.clipper.ClipperStage",
     "analyzer.classifier.classifier.ClassifierStage",
     "analyzer.detector.detector.DetectorStage",
+    "analyzer.identifier.identifier.IdentifierStage",
+    "analyzer.editor.editor.EditorStage",
 ]
 
 # Clipper settings
