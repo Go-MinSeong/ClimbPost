@@ -4,82 +4,140 @@ import AuthenticationServices
 struct LoginView: View {
     @EnvironmentObject var authState: AuthState
     @StateObject private var authService = AuthService()
+    @State private var appeared = false
+    @State private var iconScale: CGFloat = 0.9
+    @State private var showError = false
 
     var body: some View {
-        VStack(spacing: 32) {
-            Spacer()
+        ZStack {
+            // Gradient background
+            LinearGradient(
+                colors: [
+                    AppColor.background,
+                    Color(red: 0.12, green: 0.12, blue: 0.22)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
 
-            // App branding
-            VStack(spacing: 12) {
-                Image(systemName: "mountain.2.fill")
-                    .font(.system(size: 72))
-                    .foregroundStyle(.blue)
+            VStack(spacing: 0) {
+                Spacer()
 
-                Text("ClimbPost")
-                    .font(.largeTitle.bold())
+                // Branding section
+                VStack(spacing: 16) {
+                    // Climbing icon with pulse animation
+                    Image(systemName: "mountain.2.fill")
+                        .font(.system(size: 80))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [AppColor.accent, AppColor.accentDark],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .scaleEffect(iconScale)
+                        .onAppear {
+                            withAnimation(
+                                .easeInOut(duration: 2.0)
+                                .repeatForever(autoreverses: true)
+                            ) {
+                                iconScale = 1.05
+                            }
+                        }
 
-                Text("Analyze your climbing.\nShare your progress.")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
+                    Text("클라임포스트")
+                        .font(AppFont.heroTitle)
+                        .foregroundColor(.white)
 
-            Spacer()
+                    Text("나의 클라이밍, 자동으로 분석하고 공유하세요")
+                        .font(AppFont.caption)
+                        .foregroundColor(.white.opacity(0.6))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                }
 
-            // Sign in buttons
-            VStack(spacing: 16) {
-                // Apple Sign In
-                SignInWithAppleButton(.signIn) { request in
-                    request.requestedScopes = [.email, .fullName]
-                } onCompletion: { result in
-                    Task {
-                        await authService.handleAppleSignIn(result: result)
+                Spacer()
+
+                // Sign in buttons
+                VStack(spacing: 14) {
+                    // Apple Sign In
+                    SignInWithAppleButton(.signIn) { request in
+                        request.requestedScopes = [.email, .fullName]
+                    } onCompletion: { result in
+                        Task {
+                            await authService.handleAppleSignIn(result: result)
+                        }
+                    }
+                    .signInWithAppleButtonStyle(.white)
+                    .frame(height: 52)
+                    .clipShape(Capsule())
+
+                    // Google Sign In
+                    Button {
+                        Task { await authService.signInWithGoogle() }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "g.circle.fill")
+                                .font(.title2)
+                            Text("Google로 로그인")
+                                .font(.system(size: 16, weight: .medium, design: .rounded))
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                        .background(Color.white)
+                        .foregroundColor(.black)
+                        .clipShape(Capsule())
+                        .overlay(
+                            Capsule()
+                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                        )
                     }
                 }
-                .signInWithAppleButtonStyle(.black)
-                .frame(height: 50)
-                .cornerRadius(10)
+                .padding(.horizontal, 32)
+                .disabled(authService.isAuthenticating)
 
-                // Google Sign In
-                Button {
-                    Task { await authService.signInWithGoogle() }
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "g.circle.fill")
-                            .font(.title2)
-                        Text("Sign in with Google")
-                            .font(.body.weight(.medium))
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 50)
-                    .background(Color(.systemBackground))
-                    .foregroundStyle(.primary)
-                    .cornerRadius(10)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color(.separator), lineWidth: 1)
-                    )
+                if authService.isAuthenticating {
+                    ProgressView()
+                        .tint(AppColor.accent)
+                        .padding(.top, 16)
                 }
-            }
-            .padding(.horizontal, 24)
-            .disabled(authService.isAuthenticating)
 
-            if authService.isAuthenticating {
-                ProgressView()
+                Spacer()
+                    .frame(height: 60)
             }
+            .opacity(appeared ? 1 : 0)
+            .offset(y: appeared ? 0 : 20)
 
-            if let error = authService.errorMessage {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
+            // Error toast overlay
+            if showError, let error = authService.errorMessage {
+                VStack {
+                    Spacer()
+                    Text(error)
+                        .font(AppFont.caption)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background(AppColor.fail.opacity(0.9))
+                        .clipShape(Capsule())
+                        .padding(.bottom, 100)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+                .ignoresSafeArea()
             }
-
-            Spacer()
-                .frame(height: 40)
         }
         .onAppear {
             authService.configure(authState: authState)
+            withAnimation(.easeOut(duration: 0.8)) {
+                appeared = true
+            }
+        }
+        .onChange(of: authService.errorMessage) { _, newValue in
+            if newValue != nil {
+                withAnimation { showError = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                    withAnimation { showError = false }
+                }
+            }
         }
     }
 }
