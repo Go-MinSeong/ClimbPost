@@ -177,8 +177,10 @@ class DetectorStage(BaseStage):
         if total_pixels > 0 and np.count_nonzero(black_mask) / total_pixels > 0.4:
             return "검정"
 
-        # Filter out unsaturated/dark pixels
-        valid = (s_chan >= cfg["min_saturation"]) & (v_chan >= cfg["min_value"])
+        # Filter out unsaturated/dark pixels and skin tones
+        # Skin: Hue 0~20, Sat 30~170, Val > 80 — exclude from tape detection
+        skin_mask = (h_chan <= 20) & (s_chan >= 30) & (s_chan <= 170) & (v_chan >= 80)
+        valid = (s_chan >= cfg["min_saturation"]) & (v_chan >= cfg["min_value"]) & ~skin_mask
         valid_hues = h_chan[valid]
 
         if valid_hues.size == 0:

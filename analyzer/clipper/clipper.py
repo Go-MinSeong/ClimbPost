@@ -16,11 +16,12 @@ logger = logging.getLogger(__name__)
 
 # Default settings (overridable via config dict)
 _DEFAULTS = {
-    "sample_fps": 2,
-    "min_climb_sec": 5,
-    "buffer_sec": 3,
-    "motion_threshold": 0.02,
-    "still_frames": 4,
+    "sample_fps": 1,
+    "min_climb_sec": 8,
+    "buffer_sec": 2,
+    "climb_threshold": 0.55,   # y < this = person is climbing (upper part of frame)
+    "rest_threshold": 0.65,    # y > this = person is resting (lower part of frame)
+    "gap_sec": 5,              # seconds of rest to end a climbing segment
 }
 
 
@@ -84,7 +85,15 @@ class ClipperStage(BaseStage):
     # ------------------------------------------------------------------
 
     def _detect_segments(self, video_path: str, cfg: dict) -> list[tuple[float, float]]:
-        """Return list of (start_sec, end_sec) climbing segments."""
+        """Return list of (start_sec, end_sec) climbing segments.
+
+        Strategy for fixed tripod camera:
+        - Person's center-y < climb_threshold → they are on the wall (climbing)
+        - Person's center-y > rest_threshold → they are on the ground (resting)
+        - No pose detected → resting / between attempts
+        - A climbing segment starts when person goes above climb_threshold
+          and ends after gap_sec of being below rest_threshold or undetected.
+        """
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
             logger.error("Clipper: cannot open %s", video_path)
@@ -94,6 +103,11 @@ class ClipperStage(BaseStage):
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         sample_interval = max(1, int(fps / cfg["sample_fps"]))
 
+        climb_thresh = cfg.get("climb_threshold", 0.55)
+        rest_thresh = cfg.get("rest_threshold", 0.65)
+        gap_sec = cfg.get("gap_sec", 5)
+        gap_frames = int(gap_sec * cfg["sample_fps"])
+
         pose = mp.solutions.pose.Pose(
             static_image_mode=False,
             model_complexity=0,
@@ -101,10 +115,9 @@ class ClipperStage(BaseStage):
             min_tracking_confidence=0.5,
         )
 
-        prev_y: float | None = None
         climbing = False
-        still_count = 0
-        seg_start_frame = 0
+        rest_count = 0
+        seg_start_time = 0.0
         segments: list[tuple[float, float]] = []
 
         frame_idx = 0
@@ -117,37 +130,37 @@ class ClipperStage(BaseStage):
                 frame_idx += 1
                 continue
 
+            t = frame_idx / fps
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             results = pose.process(rgb)
-
             person_y = self._get_center_y(results)
 
-            if person_y is not None and prev_y is not None:
-                dy = abs(person_y - prev_y)
-                moving = dy > cfg["motion_threshold"]
+            is_climbing = person_y is not None and person_y < climb_thresh
+            is_resting = person_y is None or person_y > rest_thresh
 
-                if not climbing and moving:
+            if not climbing:
+                if is_climbing:
                     climbing = True
-                    still_count = 0
-                    seg_start_frame = frame_idx
-                elif climbing:
-                    if moving:
-                        still_count = 0
-                    else:
-                        still_count += 1
-                        if still_count >= cfg["still_frames"]:
-                            segments.append(
-                                (seg_start_frame / fps, frame_idx / fps)
-                            )
-                            climbing = False
-                            still_count = 0
+                    rest_count = 0
+                    seg_start_time = t
+                    logger.debug("Clipper: climb START at %.1fs (y=%.3f)", t, person_y)
+            else:
+                if is_resting:
+                    rest_count += 1
+                    if rest_count >= gap_frames:
+                        seg_end_time = t - gap_sec  # end before the gap
+                        segments.append((seg_start_time, seg_end_time))
+                        logger.debug("Clipper: climb END at %.1fs (gap)", seg_end_time)
+                        climbing = False
+                        rest_count = 0
+                else:
+                    rest_count = 0  # reset gap counter
 
-            prev_y = person_y
             frame_idx += 1
 
-        # Close open segment at end of video
+        # Close open segment
         if climbing:
-            segments.append((seg_start_frame / fps, (total_frames - 1) / fps))
+            segments.append((seg_start_time, (total_frames - 1) / fps))
 
         pose.close()
         cap.release()

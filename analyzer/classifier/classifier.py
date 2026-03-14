@@ -67,8 +67,8 @@ class ClassifierStage(BaseStage):
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         duration = total_frames / fps
 
-        tail_start = max(0.0, duration - cfg["tail_seconds"])
-        start_frame = int(tail_start * fps)
+        # Analyze the full clip (not just the tail) for better accuracy
+        start_frame = 0
         sample_interval = max(1, int(fps / cfg["sample_fps"]))
 
         pose = mp.solutions.pose.Pose(
@@ -109,29 +109,37 @@ class ClassifierStage(BaseStage):
 
     @staticmethod
     def _decide(y_positions: list[float], cfg: dict) -> str:
-        """Determine success/fail from the sequence of y positions."""
-        top_zone = cfg["top_zone_ratio"]
-        hold_needed = cfg["hold_frames"]
-        fall_threshold = cfg["fall_dy_threshold"]
+        """Determine success/fail from the sequence of y positions.
 
-        # Check for fall: sudden large downward movement (y increases)
+        For fixed tripod camera, success = climber reached high on the wall.
+        Uses absolute y position rather than relative movement.
+        """
+        if not y_positions:
+            return "fail"
+
+        fall_threshold = cfg.get("fall_dy_threshold", 0.15)
+        success_y = cfg.get("success_y_threshold", 0.40)
+
+        min_y = min(y_positions)  # highest point reached (lower y = higher)
+        last_y = y_positions[-1]
+        first_y = y_positions[0] if y_positions else 0.5
+
+        # Check for sudden fall (large downward jump in y)
         for i in range(1, len(y_positions)):
             dy = y_positions[i] - y_positions[i - 1]
             if dy > fall_threshold:
                 return "fail"
 
-        # Check for sustained top-zone presence
-        consecutive_top = 0
-        for y in y_positions:
-            if y <= top_zone:
-                consecutive_top += 1
-                if consecutive_top >= hold_needed:
-                    return "success"
-            else:
-                consecutive_top = 0
+        # Success: climber reached high enough on the wall
+        if min_y < success_y:
+            return "success"
 
-        # Fallback: final position in upper 30 %
-        if y_positions[-1] <= 0.30:
+        # Success: ended higher than started (climbed up and stayed)
+        if last_y < first_y - 0.05:
+            return "success"
+
+        # Success: final position is in upper half
+        if last_y < 0.50:
             return "success"
 
         return "fail"
