@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "postToolUse": [
+      {
+        "matcher": "Bash",
+        "pattern": "git commit",
+        "command": "bash scripts/log-prompt.sh 2>/dev/null || true"
+      }
+    ]
+  }
+}
