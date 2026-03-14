@@ -20,9 +20,10 @@ targets:
       - path: ClimbPost/Result
       - path: ClimbPost/Share
       - path: ClimbPost/Push
-    resources:
-      - path: ../data/gyms.json
-      - path: ../data/color_maps
+      - path: ClimbPost/Resources/gyms.json
+        buildPhase: resources
+      - path: ClimbPost/Resources/color_maps
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.climbpost.app

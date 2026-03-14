@@ -7,50 +7,72 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		084F5B387578C401A7BA6B21 /* AnalysisWaitingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B543EE3EF563FA5289432A7 /* AnalysisWaitingView.swift */; };
 		0D841C16A80A1A0F61B11FD3 /* AuthState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F74AE38763290031D09805A /* AuthState.swift */; };
 		1DB3818A7E1153A7DF7A61C6 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC97ABEAE12AC906736CC095 /* AuthService.swift */; };
+		2C8D1540F5AAAE5AB65D7329 /* gyms.json in Resources */ = {isa = PBXBuildFile; fileRef = 9041E8DE79CA8D86B9DD25C5 /* gyms.json */; };
+		2EE616BF2B120D5C91FB2A0B /* PushManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17124663E9406EAD21AA6A5E /* PushManager.swift */; };
 		40EEF80F8FD0D06627488578 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2DDD8B2F619618CEC8E1FA6 /* KeychainHelper.swift */; };
+		4195D783FDD4E6E0CE25BA15 /* UploadState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EC81A9961C1213EA656BA28 /* UploadState.swift */; };
+		43876D3F52DD7D4481FB859D /* GymDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38A39E7C0F74E0E03973FFAC /* GymDatabase.swift */; };
 		5E146769035E4B4765B64F70 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F42A4354DA6377A4559A9F /* Models.swift */; };
+		64C4646F675DF6A1F944039B /* ClipDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DDE52B8D90C90D95EF3AF48 /* ClipDetailView.swift */; };
 		6A237950DDEC743DD2C011BF /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D64ED9563BFC67D0476E2D7 /* ContentView.swift */; };
+		7A3C931F91ED1CA9887C130C /* DemoFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84F366C07E966E686F87282F /* DemoFlowView.swift */; };
+		8688D419D85C6DC62B8C2438 /* ShareService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A7AAA77686E1E6E86E6D136 /* ShareService.swift */; };
+		8F265930FC3CD1A277651ED7 /* gym_001.json in Resources */ = {isa = PBXBuildFile; fileRef = E45B6FC43E71D052FDDF6F62 /* gym_001.json */; };
 		959524D474A6712C49440382 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB819E84E5AEFDCE6AA46C4D /* APIClient.swift */; };
+		97A20B4D3B40A19AA8EB4784 /* Clip+Hashable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FF581BC48F20BA61C045C9B /* Clip+Hashable.swift */; };
+		9AD5CEDF486B581F1A6FDD34 /* GalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE77BE7FF416FB27184EB91A /* GalleryView.swift */; };
 		9D08BA44CCC7939E98A025CA /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17EBFBE8BF393CAB26444131 /* LoginView.swift */; };
+		A7AA731A3335833C11940EB8 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04EB801A95DAB85EEC3EF005 /* Theme.swift */; };
+		C5E33552AC258585106B0801 /* GalleryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AF870D80DC07970A36A5C47 /* GalleryService.swift */; };
+		C6DDFDB97D6C619C84239D29 /* UploadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A94FC18359A11F87F0103CBD /* UploadService.swift */; };
+		C8519C382FD1D2359592A38A /* ResultViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C6F6495EFF495EC6FA78486 /* ResultViewModel.swift */; };
+		D0FAF848EB79C2558FDD63F4 /* CarouselView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BED5A40CAB0F378093E61E16 /* CarouselView.swift */; };
 		D7C39578FD4D20821C2D7B64 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD30467493DBAC7821D983A1 /* Config.swift */; };
+		E8E21D0E98154D79BF86036A /* ResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80324F8A81F91B49BD06CC7A /* ResultView.swift */; };
+		F652153B3EC7DA630E508546 /* UploadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 721ABAC774026D0AE7B0DA22 /* UploadView.swift */; };
 		F8A0B4E0E7974A57E7D6BDA6 /* ClimbPostApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F93DA462502240B6CE28237 /* ClimbPostApp.swift */; };
-		AA1111110000000000000001 /* GymDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2222220000000000000001 /* GymDatabase.swift */; };
-		AA1111110000000000000002 /* GalleryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2222220000000000000002 /* GalleryService.swift */; };
-		AA1111110000000000000003 /* GalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2222220000000000000003 /* GalleryView.swift */; };
-		AA1111110000000000000004 /* UploadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2222220000000000000004 /* UploadService.swift */; };
-		AA1111110000000000000005 /* UploadState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2222220000000000000005 /* UploadState.swift */; };
-		AA1111110000000000000006 /* UploadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2222220000000000000006 /* UploadView.swift */; };
-		AA1111110000000000000007 /* gyms.json in Resources */ = {isa = PBXBuildFile; fileRef = AA2222220000000000000007 /* gyms.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		04EB801A95DAB85EEC3EF005 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		085086100184197A77BBAE1A /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		087978E3CDBC2CF24A30F19F /* ClimbPost.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ClimbPost.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0D64ED9563BFC67D0476E2D7 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		0EC81A9961C1213EA656BA28 /* UploadState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadState.swift; sourceTree = "<group>"; };
+		17124663E9406EAD21AA6A5E /* PushManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushManager.swift; sourceTree = "<group>"; };
 		17EBFBE8BF393CAB26444131 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		18A9E0F32DFEC273681FAEEE /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		1CAE4580B824CE6DECC3F246 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		1E846DF33E46E8FFFC661B6F /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		38A39E7C0F74E0E03973FFAC /* GymDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GymDatabase.swift; sourceTree = "<group>"; };
 		3A937527A237CE4485B60EC2 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		4F93DA462502240B6CE28237 /* ClimbPostApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClimbPostApp.swift; sourceTree = "<group>"; };
 		635A44CF2358C9D05065BA95 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		721ABAC774026D0AE7B0DA22 /* UploadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadView.swift; sourceTree = "<group>"; };
+		7A7AAA77686E1E6E86E6D136 /* ShareService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareService.swift; sourceTree = "<group>"; };
+		7AF870D80DC07970A36A5C47 /* GalleryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryService.swift; sourceTree = "<group>"; };
+		7DDE52B8D90C90D95EF3AF48 /* ClipDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipDetailView.swift; sourceTree = "<group>"; };
+		80324F8A81F91B49BD06CC7A /* ResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultView.swift; sourceTree = "<group>"; };
+		84F366C07E966E686F87282F /* DemoFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoFlowView.swift; sourceTree = "<group>"; };
+		8B543EE3EF563FA5289432A7 /* AnalysisWaitingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisWaitingView.swift; sourceTree = "<group>"; };
 		8F74AE38763290031D09805A /* AuthState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthState.swift; sourceTree = "<group>"; };
+		9041E8DE79CA8D86B9DD25C5 /* gyms.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = gyms.json; sourceTree = "<group>"; };
+		9C6F6495EFF495EC6FA78486 /* ResultViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultViewModel.swift; sourceTree = "<group>"; };
+		9FF581BC48F20BA61C045C9B /* Clip+Hashable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Clip+Hashable.swift"; sourceTree = "<group>"; };
+		A94FC18359A11F87F0103CBD /* UploadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadService.swift; sourceTree = "<group>"; };
 		AC1787798AED34F719843DE0 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		B76D4743B2ADA46A76031773 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		BED5A40CAB0F378093E61E16 /* CarouselView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarouselView.swift; sourceTree = "<group>"; };
 		C2DDD8B2F619618CEC8E1FA6 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		D0F42A4354DA6377A4559A9F /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		DD30467493DBAC7821D983A1 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
+		E45B6FC43E71D052FDDF6F62 /* gym_001.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = gym_001.json; sourceTree = "<group>"; };
 		EB819E84E5AEFDCE6AA46C4D /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		FC97ABEAE12AC906736CC095 /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
-		AA2222220000000000000001 /* GymDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GymDatabase.swift; sourceTree = "<group>"; };
-		AA2222220000000000000002 /* GalleryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryService.swift; sourceTree = "<group>"; };
-		AA2222220000000000000003 /* GalleryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryView.swift; sourceTree = "<group>"; };
-		AA2222220000000000000004 /* UploadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadService.swift; sourceTree = "<group>"; };
-		AA2222220000000000000005 /* UploadState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadState.swift; sourceTree = "<group>"; };
-		AA2222220000000000000006 /* UploadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadView.swift; sourceTree = "<group>"; };
-		AA2222220000000000000007 /* gyms.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = gyms.json; path = ../data/gyms.json; sourceTree = "<group>"; };
+		FE77BE7FF416FB27184EB91A /* GalleryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -58,9 +80,19 @@
 			isa = PBXGroup;
 			children = (
 				18A9E0F32DFEC273681FAEEE /* .gitkeep */,
+				17124663E9406EAD21AA6A5E /* PushManager.swift */,
 			);
 			name = Push;
 			path = ClimbPost/Push;
+			sourceTree = "<group>";
+		};
+		229F7B89FBE5B16C83F54BC1 /* color_maps */ = {
+			isa = PBXGroup;
+			children = (
+				E45B6FC43E71D052FDDF6F62 /* gym_001.json */,
+			);
+			name = color_maps;
+			path = ClimbPost/Resources/color_maps;
 			sourceTree = "<group>";
 		};
 		2B74E41C25EA44AB84209A15 /* Products */ = {
@@ -69,6 +101,15 @@
 				087978E3CDBC2CF24A30F19F /* ClimbPost.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		2BD48EFEC4B0C38C8B9A78F3 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				9041E8DE79CA8D86B9DD25C5 /* gyms.json */,
+			);
+			name = Resources;
+			path = ClimbPost/Resources;
 			sourceTree = "<group>";
 		};
 		336A9E508954E85638D149B6 /* Auth */ = {
@@ -91,6 +132,7 @@
 				DD30467493DBAC7821D983A1 /* Config.swift */,
 				C2DDD8B2F619618CEC8E1FA6 /* KeychainHelper.swift */,
 				D0F42A4354DA6377A4559A9F /* Models.swift */,
+				04EB801A95DAB85EEC3EF005 /* Theme.swift */,
 			);
 			name = Common;
 			path = ClimbPost/Common;
@@ -100,6 +142,8 @@
 			isa = PBXGroup;
 			children = (
 				3A937527A237CE4485B60EC2 /* .gitkeep */,
+				BED5A40CAB0F378093E61E16 /* CarouselView.swift */,
+				7A7AAA77686E1E6E86E6D136 /* ShareService.swift */,
 			);
 			name = Share;
 			path = ClimbPost/Share;
@@ -111,6 +155,7 @@
 				AC1787798AED34F719843DE0 /* .gitkeep */,
 				4F93DA462502240B6CE28237 /* ClimbPostApp.swift */,
 				0D64ED9563BFC67D0476E2D7 /* ContentView.swift */,
+				84F366C07E966E686F87282F /* DemoFlowView.swift */,
 			);
 			name = App;
 			path = ClimbPost/App;
@@ -121,13 +166,14 @@
 			children = (
 				96D5F2B061DF5DAB5D21CCA7 /* App */,
 				336A9E508954E85638D149B6 /* Auth */,
+				229F7B89FBE5B16C83F54BC1 /* color_maps */,
 				86F140E506975E25E2A1F281 /* Common */,
 				C9C73CA012C88C280045A783 /* Gallery */,
 				20997F879CC8887CA4D531AA /* Push */,
+				2BD48EFEC4B0C38C8B9A78F3 /* Resources */,
 				DF6A35D19D1B9E015DCF42B9 /* Result */,
 				8FA2882F04710DE2CDF33607 /* Share */,
 				C7973DD7CA1112F00420D605 /* Upload */,
-				AA2222220000000000000007 /* gyms.json */,
 				2B74E41C25EA44AB84209A15 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -136,9 +182,9 @@
 			isa = PBXGroup;
 			children = (
 				1CAE4580B824CE6DECC3F246 /* .gitkeep */,
-				AA2222220000000000000004 /* UploadService.swift */,
-				AA2222220000000000000005 /* UploadState.swift */,
-				AA2222220000000000000006 /* UploadView.swift */,
+				A94FC18359A11F87F0103CBD /* UploadService.swift */,
+				0EC81A9961C1213EA656BA28 /* UploadState.swift */,
+				721ABAC774026D0AE7B0DA22 /* UploadView.swift */,
 			);
 			name = Upload;
 			path = ClimbPost/Upload;
@@ -148,9 +194,9 @@
 			isa = PBXGroup;
 			children = (
 				635A44CF2358C9D05065BA95 /* .gitkeep */,
-				AA2222220000000000000002 /* GalleryService.swift */,
-				AA2222220000000000000003 /* GalleryView.swift */,
-				AA2222220000000000000001 /* GymDatabase.swift */,
+				7AF870D80DC07970A36A5C47 /* GalleryService.swift */,
+				FE77BE7FF416FB27184EB91A /* GalleryView.swift */,
+				38A39E7C0F74E0E03973FFAC /* GymDatabase.swift */,
 			);
 			name = Gallery;
 			path = ClimbPost/Gallery;
@@ -160,6 +206,11 @@
 			isa = PBXGroup;
 			children = (
 				1E846DF33E46E8FFFC661B6F /* .gitkeep */,
+				8B543EE3EF563FA5289432A7 /* AnalysisWaitingView.swift */,
+				9FF581BC48F20BA61C045C9B /* Clip+Hashable.swift */,
+				7DDE52B8D90C90D95EF3AF48 /* ClipDetailView.swift */,
+				80324F8A81F91B49BD06CC7A /* ResultView.swift */,
+				9C6F6495EFF495EC6FA78486 /* ResultViewModel.swift */,
 			);
 			name = Result;
 			path = ClimbPost/Result;
@@ -173,7 +224,7 @@
 			buildConfigurationList = D5A2C7771FAA586AB97378B8 /* Build configuration list for PBXNativeTarget "ClimbPost" */;
 			buildPhases = (
 				260CC7D570EA26C9E0CEF789 /* Sources */,
-				AA3333330000000000000001 /* Resources */,
+				2F8B954543F78C0C4AA844B7 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -217,11 +268,12 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		AA3333330000000000000001 /* Resources */ = {
+		2F8B954543F78C0C4AA844B7 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AA1111110000000000000007 /* gyms.json in Resources */,
+				8F265930FC3CD1A277651ED7 /* gym_001.json in Resources */,
+				2C8D1540F5AAAE5AB65D7329 /* gyms.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -233,20 +285,30 @@
 			buildActionMask = 2147483647;
 			files = (
 				959524D474A6712C49440382 /* APIClient.swift in Sources */,
+				084F5B387578C401A7BA6B21 /* AnalysisWaitingView.swift in Sources */,
 				1DB3818A7E1153A7DF7A61C6 /* AuthService.swift in Sources */,
 				0D841C16A80A1A0F61B11FD3 /* AuthState.swift in Sources */,
+				D0FAF848EB79C2558FDD63F4 /* CarouselView.swift in Sources */,
 				F8A0B4E0E7974A57E7D6BDA6 /* ClimbPostApp.swift in Sources */,
+				97A20B4D3B40A19AA8EB4784 /* Clip+Hashable.swift in Sources */,
+				64C4646F675DF6A1F944039B /* ClipDetailView.swift in Sources */,
 				D7C39578FD4D20821C2D7B64 /* Config.swift in Sources */,
 				6A237950DDEC743DD2C011BF /* ContentView.swift in Sources */,
-				AA1111110000000000000002 /* GalleryService.swift in Sources */,
-				AA1111110000000000000003 /* GalleryView.swift in Sources */,
-				AA1111110000000000000001 /* GymDatabase.swift in Sources */,
+				7A3C931F91ED1CA9887C130C /* DemoFlowView.swift in Sources */,
+				C5E33552AC258585106B0801 /* GalleryService.swift in Sources */,
+				9AD5CEDF486B581F1A6FDD34 /* GalleryView.swift in Sources */,
+				43876D3F52DD7D4481FB859D /* GymDatabase.swift in Sources */,
 				40EEF80F8FD0D06627488578 /* KeychainHelper.swift in Sources */,
 				9D08BA44CCC7939E98A025CA /* LoginView.swift in Sources */,
 				5E146769035E4B4765B64F70 /* Models.swift in Sources */,
-				AA1111110000000000000004 /* UploadService.swift in Sources */,
-				AA1111110000000000000005 /* UploadState.swift in Sources */,
-				AA1111110000000000000006 /* UploadView.swift in Sources */,
+				2EE616BF2B120D5C91FB2A0B /* PushManager.swift in Sources */,
+				E8E21D0E98154D79BF86036A /* ResultView.swift in Sources */,
+				C8519C382FD1D2359592A38A /* ResultViewModel.swift in Sources */,
+				8688D419D85C6DC62B8C2438 /* ShareService.swift in Sources */,
+				A7AA731A3335833C11940EB8 /* Theme.swift in Sources */,
+				C6DDFDB97D6C619C84239D29 /* UploadService.swift in Sources */,
+				4195D783FDD4E6E0CE25BA15 /* UploadState.swift in Sources */,
+				F652153B3EC7DA630E508546 /* UploadView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -325,10 +387,11 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "ClimbPost needs access to your photos to find climbing videos recorded today.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ClimbPost uses your location to match videos with climbing gyms";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "ClimbPost needs access to your photo library to find climbing videos";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UIBackgroundModes = "fetch processing";
+				INFOPLIST_KEY_UIBackgroundModes = "fetch remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
@@ -353,10 +416,11 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "ClimbPost needs access to your photos to find climbing videos recorded today.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ClimbPost uses your location to match videos with climbing gyms";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "ClimbPost needs access to your photo library to find climbing videos";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UIBackgroundModes = "fetch processing";
+				INFOPLIST_KEY_UIBackgroundModes = "fetch remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;

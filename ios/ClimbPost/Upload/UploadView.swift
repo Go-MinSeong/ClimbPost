@@ -165,7 +165,7 @@ struct UploadView: View {
         }
         .navigationDestination(isPresented: $showResult) {
             if let sessionId = uploadState.sessionId {
-                ResultView(sessionId: sessionId)
+                AnalysisWaitingView(sessionId: sessionId)
             }
         }
     }
