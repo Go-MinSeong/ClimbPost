@@ -10,7 +10,7 @@ PROJECT_ROOT = BASE_DIR.parent
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{PROJECT_ROOT / 'data' / 'climbpost.db'}")
 
 # JWT
-JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret-change-in-production")
+JWT_SECRET = os.getenv("JWT_SECRET", "climbpost-dev-secret-change-in-prod!")  # 36 bytes
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_DAYS = 7
 

@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,10 +13,22 @@ from server.api.clips import router as clips_router
 from server.push.service import router as push_router
 from server.queue.worker import poll_jobs
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    create_tables()
+    task = asyncio.create_task(poll_jobs())
+    yield
+    # Shutdown
+    task.cancel()
+
+
 app = FastAPI(
     title="ClimbPost API",
     description="Auto-analyze climbing videos and prepare Instagram carousel posts",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # CORS
@@ -33,12 +46,6 @@ app.include_router(upload_router)
 app.include_router(analysis_router)
 app.include_router(clips_router)
 app.include_router(push_router)
-
-
-@app.on_event("startup")
-def on_startup():
-    create_tables()
-    asyncio.get_event_loop().create_task(poll_jobs())
 
 
 @app.get("/health")
