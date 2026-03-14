@@ -1,13 +1,18 @@
+from __future__ import annotations
+
 import asyncio
+import json
 import logging
 import random
+import subprocess
 import uuid
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from server.config.settings import MOCK_ANALYSIS
+from server.config.settings import MOCK_ANALYSIS, STORAGE_ROOT
 from server.db.database import SessionLocal
-from server.db.models import Job, UploadSession, RawVideo, Clip
+from server.db.models import Job, UploadSession, RawVideo, Clip, Gym
 from server.push.service import send_push
 
 logger = logging.getLogger(__name__)
@@ -49,10 +54,121 @@ async def _mock_analyze(job: Job, db: Session) -> None:
     db.commit()
 
 
+def _get_video_duration(file_path: str) -> float:
+    """Get video duration in seconds using ffprobe."""
+    result = subprocess.run(
+        [
+            "ffprobe", "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            file_path,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    return float(result.stdout.strip())
+
+
+def _resolve_file_path(file_url: str) -> str:
+    """Convert a storage URL like '/storage/raw/{sid}/file.mov' to an absolute file path."""
+    relative = file_url.replace("/storage/", "/")
+    return str(Path(STORAGE_ROOT) / relative.lstrip("/"))
+
+
+def _load_color_map(gym: Gym | None, gym_id: str) -> dict:
+    """Load color map from DB gym record, falling back to data/color_maps/ file."""
+    if gym and gym.color_map:
+        cm = gym.color_map
+        if isinstance(cm, str):
+            cm = json.loads(cm)
+        # Ensure it has the 'mapping' key
+        if "mapping" in cm:
+            return cm
+        # If the whole dict is the mapping itself, wrap it
+        return {"mapping": cm}
+
+    # Fallback: load from file
+    color_map_path = Path(__file__).resolve().parent.parent.parent / "data" / "color_maps" / f"{gym_id}.json"
+    if color_map_path.exists():
+        with open(color_map_path) as f:
+            return json.load(f)
+
+    # Last resort: empty mapping
+    logger.warning("No color map found for gym %s", gym_id)
+    return {"mapping": {}}
+
+
 async def _real_analyze(job: Job, db: Session) -> None:
-    """Run the actual analyzer pipeline (subprocess or import)."""
-    # TODO: integrate with analyzer pipeline when available
-    raise NotImplementedError("Real analysis pipeline not yet integrated")
+    """Run the actual analyzer pipeline on uploaded videos."""
+    from analyzer.pipeline.context import PipelineContext, RawVideoInfo
+    from analyzer.pipeline.orchestrator import Pipeline
+    from analyzer.config.settings import PIPELINE_STAGES
+
+    # 1. Query raw videos and session info
+    raw_video_records = db.query(RawVideo).filter(RawVideo.session_id == job.session_id).all()
+    session = db.query(UploadSession).filter(UploadSession.id == job.session_id).first()
+    if not session:
+        raise ValueError(f"No upload session found for job {job.id}")
+
+    gym_id = session.gym_id or ""
+
+    # 2. Load color map
+    gym = db.query(Gym).filter(Gym.id == gym_id).first() if gym_id else None
+    color_map = _load_color_map(gym, gym_id)
+
+    # 3. Build RawVideoInfo list with file path conversion and duration
+    raw_videos = []
+    for rv in raw_video_records:
+        file_path = _resolve_file_path(rv.file_url)
+        duration = rv.duration_sec
+        if duration is None:
+            try:
+                duration = _get_video_duration(file_path)
+            except (ValueError, FileNotFoundError):
+                logger.warning("Could not get duration for %s, defaulting to 0", file_path)
+                duration = 0.0
+        raw_videos.append(
+            RawVideoInfo(
+                raw_video_id=rv.id,
+                file_path=file_path,
+                duration_sec=duration,
+            )
+        )
+
+    # 4. Build pipeline context
+    context = PipelineContext(
+        session_id=job.session_id,
+        gym_id=gym_id,
+        color_map=color_map,
+        raw_videos=raw_videos,
+        storage_root=STORAGE_ROOT,
+    )
+
+    # 5. Run pipeline (CPU/GPU-bound, run in executor to avoid blocking event loop)
+    pipeline = Pipeline(PIPELINE_STAGES, {})
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, pipeline.run, context)
+
+    # 6. Save clips to DB
+    for clip in result.clips:
+        clip_record = Clip(
+            raw_video_id=clip.raw_video_id,
+            gym_id=context.gym_id,
+            start_time=clip.start_time,
+            end_time=clip.end_time,
+            duration_sec=clip.duration_sec,
+            difficulty=clip.difficulty,
+            tape_color=clip.tape_color,
+            result=clip.result,
+            is_me=clip.is_me,
+            thumbnail_url=clip.thumbnail_path,
+            clip_url=clip.clip_path,
+            edited_url=clip.edited_path,
+        )
+        db.add(clip_record)
+
+    db.commit()
+    logger.info("Real analysis complete for session %s: %d clip(s) saved", job.session_id, len(result.clips))
 
 
 async def process_job(job_id: str) -> None:
