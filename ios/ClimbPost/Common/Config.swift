@@ -12,6 +12,6 @@ enum Config {
     #if DEBUG
     static let baseURLString = "http://localhost:8000"
     #else
-    static let baseURLString = "http://localhost:8000"
+    static let baseURLString = "https://your-server.com"
     #endif
 }
