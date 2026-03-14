@@ -5,6 +5,7 @@ struct UploadView: View {
 
     @StateObject private var uploadState = UploadState()
     @Environment(\.dismiss) private var dismiss
+    @State private var showResult = false
 
     var body: some View {
         VStack(spacing: 24) {
@@ -148,14 +149,24 @@ struct UploadView: View {
                 .foregroundStyle(.white.opacity(0.6))
                 .multilineTextAlignment(.center)
 
-            Button("확인") {
-                dismiss()
+            Button("결과 보기") {
+                showResult = true
             }
             .buttonStyle(PrimaryButtonStyle())
             .frame(width: 200)
             .padding(.top, 8)
 
+            Button("홈으로") {
+                dismiss()
+            }
+            .foregroundColor(.white.opacity(0.6))
+
             Spacer()
+        }
+        .navigationDestination(isPresented: $showResult) {
+            if let sessionId = uploadState.sessionId {
+                ResultView(sessionId: sessionId)
+            }
         }
     }
 

@@ -1,5 +1,11 @@
 import SwiftUI
 
+private func fullURL(_ path: String?) -> URL? {
+    guard let path else { return nil }
+    if path.hasPrefix("http") { return URL(string: path) }
+    return URL(string: Config.baseURLString + path)
+}
+
 struct ResultView: View {
     @StateObject private var viewModel: ResultViewModel
     @State private var selectedClip: Clip?
@@ -315,7 +321,7 @@ private struct ClipCell: View {
 
     @ViewBuilder
     private var thumbnailImage: some View {
-        if let urlString = clip.thumbnailUrl, let url = URL(string: urlString) {
+        if let url = fullURL(clip.thumbnailUrl) {
             AsyncImage(url: url) { image in
                 image.resizable()
             } placeholder: {

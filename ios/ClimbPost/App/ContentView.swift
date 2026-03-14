@@ -27,7 +27,17 @@ struct ContentView: View {
         .animation(.easeInOut(duration: 0.4), value: authState.isLoggedIn)
         .animation(.easeInOut(duration: 0.4), value: authState.isLoading)
         .task {
+            #if targetEnvironment(simulator)
+            // Auto-login for simulator demo
+            authState.handleLoginSuccess(AuthResponse(
+                accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZXYtdXNlci0wMDEiLCJleHAiOjE3NzQwOTA1NjgsImlhdCI6MTc3MzQ4NTc2OH0.LcNp93dekmQM3N4S0JfTFgk52egdRjo5vyqMIrz86ik",
+                tokenType: "bearer",
+                userId: "dev-user-001"
+            ))
+            authState.isLoading = false
+            #else
             await authState.checkExistingSession()
+            #endif
         }
     }
 }

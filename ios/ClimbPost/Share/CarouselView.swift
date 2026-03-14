@@ -1,5 +1,11 @@
 import SwiftUI
 
+private func fullURL(_ path: String?) -> URL? {
+    guard let path else { return nil }
+    if path.hasPrefix("http") { return URL(string: path) }
+    return URL(string: Config.baseURLString + path)
+}
+
 struct CarouselView: View {
     let sessionId: String
     let initialClip: Clip?
@@ -92,7 +98,7 @@ struct CarouselView: View {
     private func selectedClipThumbnail(_ clip: Clip, order: Int) -> some View {
         ZStack {
             // Thumbnail
-            if let urlString = clip.thumbnailUrl, let url = URL(string: urlString) {
+            if let url = fullURL(clip.thumbnailUrl) {
                 AsyncImage(url: url) { image in
                     image.resizable().aspectRatio(3.0/4.0, contentMode: .fill)
                 } placeholder: {
@@ -179,7 +185,7 @@ struct CarouselView: View {
                 .font(.title3)
 
             // Thumbnail (larger)
-            if let urlString = clip.thumbnailUrl, let url = URL(string: urlString) {
+            if let url = fullURL(clip.thumbnailUrl) {
                 AsyncImage(url: url) { image in
                     image.resizable().aspectRatio(3.0/4.0, contentMode: .fill)
                 } placeholder: {
