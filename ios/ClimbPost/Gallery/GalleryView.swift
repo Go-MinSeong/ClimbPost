@@ -15,7 +15,8 @@ struct GalleryView: View {
         VStack(spacing: 0) {
             if galleryService.isScanning {
                 Spacer()
-                ProgressView("Scanning for climbing videos...")
+                ProgressView("영상을 검색하는 중...")
+                    .foregroundStyle(.white)
                 Spacer()
             } else if galleryService.authorizationStatus == .denied ||
                       galleryService.authorizationStatus == .restricted {
@@ -26,11 +27,11 @@ struct GalleryView: View {
                 videoListView
             }
         }
-        .navigationTitle("Today's Videos")
+        .background(AppColor.background.ignoresSafeArea())
+        .navigationTitle("오늘의 클라이밍 영상")
         .task {
             await galleryService.requestAuthorization()
             await galleryService.scanForClimbingVideos()
-            // Select all by default
             selectedIDs = Set(galleryService.detectedVideos.map(\.id))
         }
         .navigationDestination(isPresented: $showUpload) {
@@ -44,73 +45,96 @@ struct GalleryView: View {
 
     private var videoListView: some View {
         VStack(spacing: 0) {
-            // Header with select all toggle
+            // Header with count and select-all toggle
             HStack {
-                Text("\(galleryService.detectedVideos.count) climbing videos found")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                Text("\(galleryService.detectedVideos.count)개의 영상을 찾았습니다")
+                    .font(AppFont.caption)
+                    .foregroundStyle(.white.opacity(0.6))
                 Spacer()
-                Button(allSelected ? "Deselect All" : "Select All") {
-                    if allSelected {
-                        selectedIDs.removeAll()
-                    } else {
-                        selectedIDs = Set(galleryService.detectedVideos.map(\.id))
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        if allSelected {
+                            selectedIDs.removeAll()
+                        } else {
+                            selectedIDs = Set(galleryService.detectedVideos.map(\.id))
+                        }
                     }
+                } label: {
+                    Text(allSelected ? "전체 해제" : "전체 선택")
+                        .font(AppFont.caption)
+                        .foregroundStyle(AppColor.accent)
                 }
-                .font(.subheadline)
             }
             .padding(.horizontal)
-            .padding(.vertical, 8)
+            .padding(.vertical, 10)
 
-            List(galleryService.detectedVideos) { video in
-                VideoRow(
-                    video: video,
-                    isSelected: selectedIDs.contains(video.id)
-                )
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    if selectedIDs.contains(video.id) {
-                        selectedIDs.remove(video.id)
-                    } else {
-                        selectedIDs.insert(video.id)
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    ForEach(galleryService.detectedVideos) { video in
+                        VideoRow(
+                            video: video,
+                            isSelected: selectedIDs.contains(video.id)
+                        )
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                if selectedIDs.contains(video.id) {
+                                    selectedIDs.remove(video.id)
+                                } else {
+                                    selectedIDs.insert(video.id)
+                                }
+                            }
+                        }
                     }
                 }
+                .padding(.horizontal)
             }
-            .listStyle(.plain)
 
             // Upload button
-            Button {
-                showUpload = true
-            } label: {
-                Text("Upload \(selectedIDs.count) Videos")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(selectedIDs.isEmpty ? Color.gray : Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(12)
+            VStack(spacing: 0) {
+                Divider().overlay(Color.white.opacity(0.1))
+                Button {
+                    showUpload = true
+                } label: {
+                    HStack(spacing: 8) {
+                        if selectedIDs.isEmpty {
+                            Text("영상을 선택하세요")
+                        } else {
+                            Text("\(selectedIDs.count)개 영상 업로드")
+                            Image(systemName: "arrow.up.right")
+                        }
+                    }
+                }
+                .buttonStyle(PrimaryButtonStyle(isEnabled: !selectedIDs.isEmpty))
+                .disabled(selectedIDs.isEmpty)
+                .padding()
             }
-            .disabled(selectedIDs.isEmpty)
-            .padding()
         }
     }
 
     private var emptyStateView: some View {
         VStack(spacing: 16) {
             Spacer()
-            Image(systemName: "video.slash")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
-            Text("No climbing videos found")
-                .font(.title3.bold())
-            Text("Record videos at a climbing gym today,\nthen come back to upload them.")
-                .font(.body)
-                .foregroundStyle(.secondary)
+            Image(systemName: "figure.climbing")
+                .font(.system(size: 56))
+                .foregroundStyle(AppColor.accent.opacity(0.6))
+
+            Text("오늘 촬영한 영상이 없습니다")
+                .font(AppFont.sectionTitle)
+                .foregroundStyle(.white)
+
+            Text("암장에서 영상을 촬영한 후\n다시 스캔해 보세요")
+                .font(AppFont.caption)
+                .foregroundStyle(.white.opacity(0.5))
                 .multilineTextAlignment(.center)
-            Button("Scan Again") {
+
+            Button("다시 스캔") {
                 Task { await galleryService.scanForClimbingVideos() }
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(PrimaryButtonStyle())
+            .frame(width: 160)
+            .padding(.top, 8)
+
             Spacer()
         }
         .padding()
@@ -120,20 +144,27 @@ struct GalleryView: View {
         VStack(spacing: 16) {
             Spacer()
             Image(systemName: "photo.on.rectangle.angled")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
-            Text("Photo Library Access Required")
-                .font(.title3.bold())
-            Text("ClimbPost needs access to your photos to find climbing videos. Please enable access in Settings.")
-                .font(.body)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 56))
+                .foregroundStyle(AppColor.accent.opacity(0.6))
+
+            Text("사진 라이브러리 접근이 필요합니다")
+                .font(AppFont.sectionTitle)
+                .foregroundStyle(.white)
+
+            Text("설정에서 접근을 허용해 주세요")
+                .font(AppFont.caption)
+                .foregroundStyle(.white.opacity(0.5))
                 .multilineTextAlignment(.center)
-            Button("Open Settings") {
+
+            Button("설정 열기") {
                 if let url = URL(string: UIApplication.openSettingsURLString) {
                     UIApplication.shared.open(url)
                 }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(PrimaryButtonStyle())
+            .frame(width: 160)
+            .padding(.top, 8)
+
             Spacer()
         }
         .padding()
@@ -150,46 +181,63 @@ struct VideoRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Checkbox
-            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(isSelected ? .blue : .secondary)
-                .font(.title3)
+            // Thumbnail with selection overlay
+            ZStack(alignment: .topTrailing) {
+                Group {
+                    if let thumbnail {
+                        Image(uiImage: thumbnail)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } else {
+                        Rectangle()
+                            .fill(AppColor.cardBackground)
+                            .overlay {
+                                Image(systemName: "video.fill")
+                                    .foregroundStyle(.white.opacity(0.3))
+                            }
+                    }
+                }
+                .frame(width: 100, height: 75)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(isSelected ? AppColor.accent : Color.clear, lineWidth: 2)
+                )
+                .shadow(color: isSelected ? AppColor.accent.opacity(0.4) : .clear, radius: 6, x: 0, y: 0)
 
-            // Thumbnail
-            Group {
-                if let thumbnail {
-                    Image(uiImage: thumbnail)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } else {
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.2))
-                        .overlay {
-                            Image(systemName: "video.fill")
-                                .foregroundStyle(.secondary)
-                        }
+                // Checkmark overlay
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(AppColor.accent)
+                        .background(Circle().fill(.white).padding(2))
+                        .offset(x: 4, y: -4)
                 }
             }
-            .frame(width: 80, height: 60)
-            .cornerRadius(8)
-            .clipped()
+            .scaleEffect(isSelected ? 1.0 : 0.95)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
 
             // Info
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text(video.gym.name)
-                    .font(.body.bold())
+                    .font(AppFont.cardTitle)
+                    .foregroundStyle(.white)
                 HStack(spacing: 8) {
                     Label(video.formattedDuration, systemImage: "clock")
                     Label(video.creationDate.formatted(date: .omitted, time: .shortened),
                           systemImage: "calendar")
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(AppFont.caption)
+                .foregroundStyle(.white.opacity(0.5))
             }
 
             Spacer()
         }
-        .padding(.vertical, 4)
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(isSelected ? AppColor.cardBackground : AppColor.cardBackground.opacity(0.5))
+        )
         .task {
             await loadThumbnail()
         }
@@ -202,7 +250,7 @@ struct VideoRow: View {
         options.deliveryMode = .opportunistic
         options.resizeMode = .fast
 
-        let size = CGSize(width: 160, height: 120)
+        let size = CGSize(width: 200, height: 150)
         let result: UIImage? = await withCheckedContinuation { continuation in
             manager.requestImage(
                 for: video.asset,
