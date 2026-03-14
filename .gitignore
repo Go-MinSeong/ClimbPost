@@ -1,0 +1,80 @@
+# macOS
+.DS_Store
+*.swp
+*~
+
+# Xcode
+ios/ClimbPost.xcodeproj/xcuserdata/
+ios/ClimbPost.xcodeproj/project.xcworkspace/xcuserdata/
+ios/*.xcworkspace/xcuserdata/
+DerivedData/
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.hmap
+*.xccheckout
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.xcscmblueprint
+*.xcworkspace
+!default.xcworkspace
+
+# Swift Package Manager
+.build/
+Packages/
+Package.pins
+Package.resolved
+*.xcodeproj
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# AI Models (too large for git)
+analyzer/models/*.pt
+analyzer/models/*.pth
+analyzer/models/*.onnx
+analyzer/models/*.bin
+!analyzer/models/.gitkeep
+
+# Environment
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Logs
+*.log
+logs/
+
+# Videos (test data)
+*.mp4
+*.mov
+*.avi
+
+# Database
+*.db
+*.sqlite3
+
+# Node (if used for server)
+node_modules/
+npm-debug.log*
