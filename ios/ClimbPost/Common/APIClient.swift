@@ -84,7 +84,7 @@ final class APIClient: APIClientProtocol {
     // MARK: - Upload
 
     func uploadVideo(sessionId: String, fileURL: URL, progress: @escaping (Double) -> Void) async throws -> UploadResponse {
-        let url = baseURL.appendingPathComponent("/videos/upload/\(sessionId)")
+        let url = baseURL.appendingPathComponent("videos/upload/\(sessionId)")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         try addAuthHeader(to: &request)

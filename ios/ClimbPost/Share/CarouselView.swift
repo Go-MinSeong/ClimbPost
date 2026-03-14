@@ -57,6 +57,9 @@ struct CarouselView: View {
         .background(AppColor.background)
         .navigationTitle("캐러셀 구성")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(AppColor.background, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .alert("공유 오류", isPresented: .init(
             get: { shareError != nil },
             set: { if !$0 { shareError = nil } }
@@ -308,9 +311,12 @@ struct CarouselView: View {
                     clips: selectedClips,
                     baseURLString: Config.baseURLString
                 )
+                let result = await ShareService.shared.shareToInstagram(videoURLs: videoURLs)
                 await MainActor.run {
-                    ShareService.shared.presentShareSheet(videoURLs: videoURLs)
                     isSharing = false
+                    if case .failure(let err) = result {
+                        shareError = err.localizedDescription
+                    }
                 }
             } catch {
                 await MainActor.run {

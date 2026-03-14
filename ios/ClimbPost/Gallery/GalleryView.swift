@@ -30,6 +30,9 @@ struct GalleryView: View {
         }
         .background(AppColor.background.ignoresSafeArea())
         .navigationTitle("오늘의 클라이밍 영상")
+        .toolbarBackground(AppColor.background, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .task {
             await galleryService.requestAuthorization()
             await galleryService.scanForClimbingVideos()

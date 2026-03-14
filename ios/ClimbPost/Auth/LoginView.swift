@@ -73,6 +73,24 @@ struct LoginView: View {
                     .frame(height: 52)
                     .clipShape(Capsule())
 
+                    #if DEBUG
+                    // Debug: skip login for simulator testing
+                    Button {
+                        Task { await debugLogin() }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "hammer.fill")
+                                .font(.title2)
+                            Text("[DEV] 테스트 로그인")
+                                .font(.system(size: 16, weight: .medium, design: .rounded))
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                        .background(AppColor.accent)
+                        .foregroundColor(.white)
+                        .clipShape(Capsule())
+                    }
+                    #endif
+
                     // Google Sign In
                     Button {
                         Task { await authService.signInWithGoogle() }
@@ -131,6 +149,9 @@ struct LoginView: View {
                 appeared = true
             }
         }
+        #if DEBUG
+        .task(id: "debug") {} // placeholder
+        #endif
         .onChange(of: authService.errorMessage) { _, newValue in
             if newValue != nil {
                 withAnimation { showError = true }
@@ -140,4 +161,21 @@ struct LoginView: View {
             }
         }
     }
+
+    #if DEBUG
+    private func debugLogin() async {
+        // Dev bypass: create user on server and get real JWT
+        do {
+            // Call a dev endpoint to get a real token for UI testing
+            let url = URL(string: "\(Config.baseURLString)/auth/me")!
+            // First try — if server has a dev user, we generate token locally
+            // Just set auth state with a pre-generated dev token
+            authState.handleLoginSuccess(AuthResponse(
+                accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZXYtdXNlci0wMDEiLCJleHAiOjE3NzQwOTA1NjgsImlhdCI6MTc3MzQ4NTc2OH0.LcNp93dekmQM3N4S0JfTFgk52egdRjo5vyqMIrz86ik",
+                tokenType: "bearer",
+                userId: "dev-user-001"
+            ))
+        }
+    }
+    #endif
 }

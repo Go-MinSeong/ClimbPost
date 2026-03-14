@@ -68,6 +68,9 @@ struct ClipDetailView: View {
         .background(AppColor.background)
         .navigationTitle("클립 상세")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(AppColor.background, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .navigationDestination(isPresented: $showCarousel) {
             CarouselView(sessionId: sessionId, initialClip: clip)
         }
@@ -190,15 +193,19 @@ struct ClipDetailView: View {
     // MARK: - Setup
 
     private func setupPlayer() {
-        let urlString = "\(Config.baseURLString)/clips/\(clip.id)/video"
+        // Use static file URL (no auth needed) — prefer edited, fallback to clip
+        let videoPath = clip.editedUrl ?? clip.clipUrl
+        guard let path = videoPath else { return }
+
+        let urlString: String
+        if path.hasPrefix("http") {
+            urlString = path
+        } else {
+            urlString = "\(Config.baseURLString)\(path)"
+        }
         guard let url = URL(string: urlString) else { return }
 
-        let asset = AVURLAsset(url: url, options: [
-            "AVURLAssetHTTPHeaderFieldsKey": [
-                "Authorization": "Bearer \(KeychainHelper.load(.accessToken) ?? "")"
-            ]
-        ])
-        let item = AVPlayerItem(asset: asset)
+        let item = AVPlayerItem(url: url)
         player = AVPlayer(playerItem: item)
     }
 }

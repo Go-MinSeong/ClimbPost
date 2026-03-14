@@ -35,12 +35,14 @@ final class UploadService: NSObject {
 
         do {
             // Step 1: Create session
+            NSLog("[Upload] Step 1: Creating session for gym \(firstVideo.gym.id)")
             let sessionResponse = try await apiClient.createSession(
                 gymId: firstVideo.gym.id,
                 recordedDate: recordedDate
             )
 
-            let sessionId = sessionResponse.sessionId
+            let sessionId = sessionResponse.id
+            NSLog("[Upload] Session created: \(sessionId)")
             await MainActor.run { state.sessionId = sessionId }
 
             // Step 2: Upload each video
@@ -50,21 +52,25 @@ final class UploadService: NSObject {
                     state.currentFile = video.gym.name
                 }
 
+                NSLog("[Upload] Step 2.\(index+1): Exporting video \(index+1)/\(videos.count)")
                 let fileURL = try await exportVideoToTemp(asset: video.asset)
+                let fileSize = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? Int) ?? 0
+                NSLog("[Upload] Exported to \(fileURL.lastPathComponent) (\(fileSize / 1_000_000)MB)")
                 defer { try? FileManager.default.removeItem(at: fileURL) }
 
+                NSLog("[Upload] Uploading \(fileURL.lastPathComponent)...")
                 _ = try await apiClient.uploadVideo(
                     sessionId: sessionId,
                     fileURL: fileURL
                 ) { fraction in
                     Task { @MainActor in
                         state.fileProgress[video.id] = fraction
-                        // Overall progress: completed files + current file fraction
                         let completedPortion = Double(index) / Double(videos.count)
                         let currentPortion = fraction / Double(videos.count)
                         state.progress = completedPortion + currentPortion
                     }
                 }
+                NSLog("[Upload] Video \(index+1) uploaded successfully")
 
                 await MainActor.run {
                     state.fileProgress[video.id] = 1.0
@@ -72,16 +78,19 @@ final class UploadService: NSObject {
             }
 
             // Step 3: Start analysis
+            NSLog("[Upload] Step 3: Starting analysis")
             let analysisResponse = try await apiClient.startAnalysis(sessionId: sessionId)
+            NSLog("[Upload] Analysis started: job \(analysisResponse.id)")
 
             await MainActor.run {
                 state.progress = 1.0
                 state.isComplete = true
                 state.isUploading = false
-                state.jobId = analysisResponse.jobId
+                state.jobId = analysisResponse.id
             }
 
         } catch {
+            NSLog("[Upload] ❌ ERROR: \(error)")
             await MainActor.run {
                 state.errorMessage = error.localizedDescription
                 state.isUploading = false

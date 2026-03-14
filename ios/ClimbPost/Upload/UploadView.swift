@@ -22,9 +22,12 @@ struct UploadView: View {
                 Spacer()
             }
         }
-        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppColor.background.ignoresSafeArea())
         .navigationTitle("업로드")
+        .toolbarBackground(AppColor.background, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .navigationBarBackButtonHidden(uploadState.isUploading)
         .task {
             await UploadService.shared.uploadVideos(videos, state: uploadState)

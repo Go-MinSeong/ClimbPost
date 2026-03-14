@@ -40,6 +40,9 @@ struct ResultView: View {
         }
         .background(AppColor.background)
         .navigationTitle("분석 결과")
+        .toolbarBackground(AppColor.background, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .overlay(alignment: .bottom) {
             if !viewModel.filteredClips.isEmpty {
                 Button {

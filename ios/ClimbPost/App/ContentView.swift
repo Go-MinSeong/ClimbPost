@@ -17,7 +17,7 @@ struct ContentView: View {
                     }
                 }
             } else if authState.isLoggedIn {
-                DemoFlowView()
+                MainView()
                     .transition(.opacity)
             } else {
                 LoginView()

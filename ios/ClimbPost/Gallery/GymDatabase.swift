@@ -31,7 +31,7 @@ final class GymDatabase {
     }
 
     private func loadGyms() {
-        guard let url = Bundle.main.url(forResource: "gyms", withExtension: "json") else {
+        guard let url = Bundle.main.url(forResource: "gyms", withExtension: "json", subdirectory: "Resources") ?? Bundle.main.url(forResource: "gyms", withExtension: "json") else {
             print("[GymDatabase] gyms.json not found in bundle")
             return
         }
