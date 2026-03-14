@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import random
 import subprocess
 import uuid
@@ -145,11 +146,36 @@ async def _real_analyze(job: Job, db: Session) -> None:
     )
 
     # 5. Run pipeline (CPU/GPU-bound, run in executor to avoid blocking event loop)
-    pipeline = Pipeline(PIPELINE_STAGES, {})
+    config = {
+        "clipper": {
+            "motion_threshold": 0.04,   # less sensitive (was 0.02)
+            "still_frames": 6,          # longer pause to end clip (was 4)
+            "min_climb_sec": 10,        # min 10s clips (was 5)
+        },
+        "classifier": {
+            "top_zone_ratio": 0.30,     # top 30% = success zone (was 0.20)
+            "hold_frames": 1,           # 1 frame in top = success (was 2)
+            "fall_dy_threshold": 0.20,  # bigger fall needed for fail (was 0.15)
+        },
+        "detector": {
+            "min_saturation": 30,       # detect less saturated colors (was 50)
+            "max_samples": 20,          # more frames to sample (was 10)
+        },
+    }
+    pipeline = Pipeline(PIPELINE_STAGES, config)
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(None, pipeline.run, context)
 
-    # 6. Save clips to DB
+    # 6. Save clips to DB (convert absolute paths to relative /storage/ URLs)
+    def _to_url(abs_path: str | None) -> str | None:
+        if not abs_path:
+            return None
+        try:
+            rel = os.path.relpath(abs_path, STORAGE_ROOT)
+            return f"/storage/{rel}"
+        except ValueError:
+            return abs_path
+
     for clip in result.clips:
         clip_record = Clip(
             raw_video_id=clip.raw_video_id,
@@ -161,9 +187,9 @@ async def _real_analyze(job: Job, db: Session) -> None:
             tape_color=clip.tape_color,
             result=clip.result,
             is_me=clip.is_me,
-            thumbnail_url=clip.thumbnail_path,
-            clip_url=clip.clip_path,
-            edited_url=clip.edited_path,
+            thumbnail_url=_to_url(clip.thumbnail_path),
+            clip_url=_to_url(clip.clip_path),
+            edited_url=_to_url(clip.edited_path),
         )
         db.add(clip_record)
 

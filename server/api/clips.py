@@ -76,7 +76,8 @@ async def stream_clip_video(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video file not available")
 
     # Convert URL path to filesystem path
-    file_path = Path(STORAGE_ROOT) / url.lstrip("/storage/")
+    rel = url.removeprefix("/storage/") if url.startswith("/storage/") else url
+    file_path = Path(STORAGE_ROOT) / rel
     if not file_path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video file not found on disk")
 

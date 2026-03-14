@@ -1,10 +1,13 @@
 import asyncio
 from contextlib import asynccontextmanager
 
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
-from server.config.settings import CORS_ORIGINS
+from server.config.settings import CORS_ORIGINS, STORAGE_ROOT
 from server.db.database import create_tables
 from server.auth.router import router as auth_router
 from server.api.upload import router as upload_router
@@ -46,6 +49,12 @@ app.include_router(upload_router)
 app.include_router(analysis_router)
 app.include_router(clips_router)
 app.include_router(push_router)
+
+
+# Static file serving for thumbnails, clips, edited videos
+storage_path = Path(STORAGE_ROOT)
+storage_path.mkdir(parents=True, exist_ok=True)
+app.mount("/storage", StaticFiles(directory=str(storage_path)), name="storage")
 
 
 @app.get("/health")
