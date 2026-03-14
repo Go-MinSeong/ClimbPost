@@ -1,0 +1,11 @@
+{
+  "gyms": [
+    {
+      "id": "gym_001",
+      "name": "더클라임 강남",
+      "latitude": 37.4967,
+      "longitude": 127.0276,
+      "color_map_file": "color_maps/gym_001.json"
+    }
+  ]
+}
