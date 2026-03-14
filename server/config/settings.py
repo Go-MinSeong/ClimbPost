@@ -32,5 +32,8 @@ CLIPS_DIR = f"{STORAGE_ROOT}/clips/{{session_id}}/"
 EDITED_DIR = f"{STORAGE_ROOT}/edited/{{session_id}}/"
 THUMBNAILS_DIR = f"{STORAGE_ROOT}/thumbnails/{{session_id}}/"
 
+# Mock analysis mode (skip GPU pipeline, generate fake results)
+MOCK_ANALYSIS = os.getenv("MOCK_ANALYSIS", "false").lower() in ("true", "1", "yes")
+
 # CORS
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*").split(",")
