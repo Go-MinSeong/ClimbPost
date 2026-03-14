@@ -21,7 +21,9 @@ struct ContentView: View {
 
 struct MainView: View {
     @EnvironmentObject var authState: AuthState
+    @EnvironmentObject var pushManager: PushManager
     @State private var showGallery = false
+    @State private var pushSessionId: String?
 
     var body: some View {
         NavigationStack {
@@ -67,6 +69,14 @@ struct MainView: View {
             .navigationDestination(isPresented: $showGallery) {
                 GalleryView()
             }
+            .navigationDestination(item: $pushSessionId) { sessionId in
+                ResultView(sessionId: sessionId)
+            }
+        }
+        .onReceive(pushManager.$pendingSessionId) { sessionId in
+            guard let sessionId else { return }
+            pushSessionId = sessionId
+            pushManager.pendingSessionId = nil
         }
     }
 }
