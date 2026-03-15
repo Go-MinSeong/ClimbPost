@@ -88,13 +88,13 @@ class EditorStage(BaseStage):
         crop_x = (src_w - crop_w) // 2
         crop_y = (src_h - crop_h) // 2
 
-        # Build FFmpeg filter: crop → HDR tonemap → scale
-        # iPhone records HDR (BT.2020/HLG 10-bit). Must tonemap to SDR
-        # for correct brightness on iOS AVPlayer.
+        # Build FFmpeg filter: crop → BT.2020 HDR to BT.709 SDR → scale
+        # iPhone records HDR (BT.2020/HLG 10-bit). colorspace filter performs
+        # proper color matrix + transfer function conversion to SDR.
         vf = (
             f"crop={crop_w}:{crop_h}:{crop_x}:{crop_y},"
-            f"format=p010le,tonemap=tonemap=hable:desat=0,"
-            f"format=yuv420p,scale={out_w}:{out_h}"
+            f"colorspace=all=bt709:iall=bt2020:format=yuv420p,"
+            f"scale={out_w}:{out_h}"
         )
 
         # Duration limit
