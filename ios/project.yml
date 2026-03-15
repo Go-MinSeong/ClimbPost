@@ -26,7 +26,8 @@ targets:
         buildPhase: resources
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.climbpost.app
+        PRODUCT_BUNDLE_IDENTIFIER: com.rmsdlf2580.climbpost
+        DEVELOPMENT_TEAM: ""
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.9"
@@ -34,6 +35,3 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
     entitlements:
       path: ClimbPost/ClimbPost.entitlements
-      properties:
-        com.apple.developer.applesignin:
-          - Default

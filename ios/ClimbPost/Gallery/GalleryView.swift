@@ -29,14 +29,17 @@ struct GalleryView: View {
             }
         }
         .background(AppColor.background.ignoresSafeArea())
-        .navigationTitle("오늘의 클라이밍 영상")
+        .navigationTitle("최근 클라이밍 영상")
         .toolbarBackground(AppColor.background, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
-        .task {
-            await galleryService.requestAuthorization()
-            await galleryService.scanForClimbingVideos()
-            selectedIDs = Set(galleryService.detectedVideos.map(\.id))
+        .onAppear {
+            guard !galleryService.isScanning && galleryService.detectedVideos.isEmpty else { return }
+            Task {
+                await galleryService.requestAuthorization()
+                await galleryService.scanForClimbingVideos()
+                selectedIDs = Set(galleryService.detectedVideos.map(\.id))
+            }
         }
         .navigationDestination(isPresented: $showUpload) {
             UploadView(
@@ -259,8 +262,9 @@ struct VideoRow: View {
         let manager = PHImageManager.default()
         let options = PHImageRequestOptions()
         options.isSynchronous = false
-        options.deliveryMode = .opportunistic
+        options.deliveryMode = .highQualityFormat  // Single callback only
         options.resizeMode = .fast
+        options.isNetworkAccessAllowed = true
 
         let size = CGSize(width: 200, height: 150)
         let result: UIImage? = await withCheckedContinuation { continuation in
@@ -269,7 +273,8 @@ struct VideoRow: View {
                 targetSize: size,
                 contentMode: .aspectFill,
                 options: options
-            ) { image, _ in
+            ) { image, info in
+                // highQualityFormat guarantees single callback
                 continuation.resume(returning: image)
             }
         }

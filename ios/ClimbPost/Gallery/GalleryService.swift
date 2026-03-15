@@ -1,6 +1,9 @@
 import Foundation
 import Photos
 import CoreLocation
+import os.log
+
+private let logger = Logger(subsystem: "com.climbpost", category: "Gallery")
 
 struct DetectedVideo: Identifiable {
     let id: String
@@ -31,79 +34,83 @@ final class GalleryService: ObservableObject {
 
     func requestAuthorization() async {
         #if targetEnvironment(simulator)
-        // Simulator: skip the authorization prompt — use .authorized directly
         authorizationStatus = .authorized
         #else
         let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
         authorizationStatus = status
+        logger.info("Photo auth: \(String(describing: status.rawValue))")
         #endif
     }
 
     func scanForClimbingVideos() async {
         #if !targetEnvironment(simulator)
         guard authorizationStatus == .authorized || authorizationStatus == .limited else {
-            errorMessage = "Photo library access required to scan for climbing videos."
+            errorMessage = "사진 라이브러리 접근 권한이 필요합니다."
             return
         }
         #endif
 
         isScanning = true
         errorMessage = nil
-        detectedVideos = []
 
-        let options = PHFetchOptions()
+        let gymDB = gymDatabase
 
-        #if targetEnvironment(simulator)
-        // Simulator: show ALL videos (no date/GPS filter — addmedia strips metadata)
-        options.predicate = NSPredicate(
-            format: "mediaType == %d",
-            PHAssetMediaType.video.rawValue
-        )
-        #else
-        let calendar = Calendar.current
-        let startOfDay = calendar.startOfDay(for: Date())
-        guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else {
-            isScanning = false
-            return
-        }
-        options.predicate = NSPredicate(
-            format: "mediaType == %d AND creationDate >= %@ AND creationDate < %@",
-            PHAssetMediaType.video.rawValue,
-            startOfDay as NSDate,
-            endOfDay as NSDate
-        )
-        #endif
+        let videos: [DetectedVideo] = await Task.detached(priority: .userInitiated) {
+            logger.info("Scan started")
 
-        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
-
-        let results = PHAsset.fetchAssets(with: options)
-        var videos: [DetectedVideo] = []
-
-        // Default gym for simulator (no GPS in addmedia assets)
-        let fallbackGym = gymDatabase.gyms.first
-
-        results.enumerateObjects { asset, _, _ in
-            let gym: Gym?
-            if let location = asset.location {
-                gym = self.gymDatabase.findNearestGym(location: location)
-            } else {
-                #if targetEnvironment(simulator)
-                gym = fallbackGym
-                #else
-                gym = nil
-                #endif
-            }
-            guard let gym else { return }
-
-            let video = DetectedVideo(
-                id: asset.localIdentifier,
-                asset: asset,
-                gym: gym,
-                duration: asset.duration,
-                creationDate: asset.creationDate ?? Date()
+            let options = PHFetchOptions()
+            // Only fetch videos with location data — skip locationless ones entirely
+            #if targetEnvironment(simulator)
+            options.predicate = NSPredicate(
+                format: "mediaType == %d",
+                PHAssetMediaType.video.rawValue
             )
-            videos.append(video)
-        }
+            #else
+            let calendar = Calendar.current
+            guard let fiveDaysAgo = calendar.date(byAdding: .day, value: -5, to: Date()) else {
+                return []
+            }
+            options.predicate = NSPredicate(
+                format: "mediaType == %d AND creationDate >= %@",
+                PHAssetMediaType.video.rawValue,
+                fiveDaysAgo as NSDate
+            )
+            #endif
+            options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+            options.fetchLimit = 200 // Safety limit
+
+            let results = PHAsset.fetchAssets(with: options)
+            logger.info("Found \(results.count) videos in last 5 days")
+
+            var found: [DetectedVideo] = []
+            let fallbackGym = gymDB.gyms.first
+
+            for i in 0..<results.count {
+                let asset = results.object(at: i)
+
+                let gym: Gym?
+                #if targetEnvironment(simulator)
+                gym = asset.location.flatMap { gymDB.findNearestGym(location: $0) } ?? fallbackGym
+                #else
+                // Skip videos without location — they can't be matched to a gym
+                guard let location = asset.location else { continue }
+                gym = gymDB.findNearestGym(location: location)
+                #endif
+
+                guard let gym else { continue }
+
+                found.append(DetectedVideo(
+                    id: asset.localIdentifier,
+                    asset: asset,
+                    gym: gym,
+                    duration: asset.duration,
+                    creationDate: asset.creationDate ?? Date()
+                ))
+            }
+
+            logger.info("Matched \(found.count) climbing videos")
+            return found
+        }.value
 
         detectedVideos = videos
         isScanning = false

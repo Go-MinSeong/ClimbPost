@@ -38,19 +38,19 @@
 
 /* Begin PBXFileReference section */
 		04EB801A95DAB85EEC3EF005 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
-		085086100184197A77BBAE1A /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
-		087978E3CDBC2CF24A30F19F /* ClimbPost.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ClimbPost.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		085086100184197A77BBAE1A /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
+		087978E3CDBC2CF24A30F19F /* ClimbPost.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClimbPost.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0D64ED9563BFC67D0476E2D7 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		0EC81A9961C1213EA656BA28 /* UploadState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadState.swift; sourceTree = "<group>"; };
 		17124663E9406EAD21AA6A5E /* PushManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushManager.swift; sourceTree = "<group>"; };
 		17EBFBE8BF393CAB26444131 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
-		18A9E0F32DFEC273681FAEEE /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
-		1CAE4580B824CE6DECC3F246 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
-		1E846DF33E46E8FFFC661B6F /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		18A9E0F32DFEC273681FAEEE /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
+		1CAE4580B824CE6DECC3F246 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
+		1E846DF33E46E8FFFC661B6F /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
 		38A39E7C0F74E0E03973FFAC /* GymDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GymDatabase.swift; sourceTree = "<group>"; };
-		3A937527A237CE4485B60EC2 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		3A937527A237CE4485B60EC2 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
 		4F93DA462502240B6CE28237 /* ClimbPostApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClimbPostApp.swift; sourceTree = "<group>"; };
-		635A44CF2358C9D05065BA95 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		635A44CF2358C9D05065BA95 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
 		721ABAC774026D0AE7B0DA22 /* UploadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadView.swift; sourceTree = "<group>"; };
 		7A7AAA77686E1E6E86E6D136 /* ShareService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareService.swift; sourceTree = "<group>"; };
 		7AF870D80DC07970A36A5C47 /* GalleryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryService.swift; sourceTree = "<group>"; };
@@ -63,8 +63,8 @@
 		9C6F6495EFF495EC6FA78486 /* ResultViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultViewModel.swift; sourceTree = "<group>"; };
 		9FF581BC48F20BA61C045C9B /* Clip+Hashable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Clip+Hashable.swift"; sourceTree = "<group>"; };
 		A94FC18359A11F87F0103CBD /* UploadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadService.swift; sourceTree = "<group>"; };
-		AC1787798AED34F719843DE0 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
-		B76D4743B2ADA46A76031773 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		AC1787798AED34F719843DE0 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
+		B76D4743B2ADA46A76031773 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
 		BED5A40CAB0F378093E61E16 /* CarouselView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarouselView.swift; sourceTree = "<group>"; };
 		C2DDD8B2F619618CEC8E1FA6 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		D0F42A4354DA6377A4559A9F /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
@@ -245,8 +245,6 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
-				TargetAttributes = {
-				};
 			};
 			buildConfigurationList = 272C45236BB898E553120106 /* Build configuration list for PBXProject "ClimbPost" */;
 			developmentRegion = en;
@@ -385,22 +383,15 @@
 				CODE_SIGN_ENTITLEMENTS = ClimbPost/ClimbPost.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ClimbPost uses your location to match videos with climbing gyms";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "ClimbPost needs access to your photo library to find climbing videos";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UIBackgroundModes = "fetch remote-notification";
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				DEVELOPMENT_TEAM = 73YMN298A9;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ClimbPost/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.climbpost.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.rmsdlf2580.climbpost;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -414,22 +405,15 @@
 				CODE_SIGN_ENTITLEMENTS = ClimbPost/ClimbPost.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ClimbPost uses your location to match videos with climbing gyms";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "ClimbPost needs access to your photo library to find climbing videos";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UIBackgroundModes = "fetch remote-notification";
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				DEVELOPMENT_TEAM = 73YMN298A9;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ClimbPost/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.climbpost.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.rmsdlf2580.climbpost;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = "1,2";

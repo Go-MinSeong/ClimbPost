@@ -9,8 +9,10 @@ enum Config {
         return url
     }()
 
-    #if DEBUG
+    #if targetEnvironment(simulator)
     static let baseURLString = "http://localhost:8000"
+    #elseif DEBUG
+    static let baseURLString = "http://172.30.1.82:8000"
     #else
     static let baseURLString = "https://your-server.com"
     #endif
