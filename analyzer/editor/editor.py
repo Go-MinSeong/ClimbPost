@@ -103,13 +103,12 @@ class EditorStage(BaseStage):
             "-t", f"{duration:.3f}",
             "-vf", vf,
             "-c:v", cfg["video_codec"],
-            "-pix_fmt", "yuv420p",       # 8-bit for iOS compatibility
-            "-color_primaries", "bt709",  # SDR color metadata (iPhone HDR → SDR)
-            "-color_trc", "bt709",
-            "-colorspace", "bt709",
+            "-pix_fmt", "yuv420p",  # 8-bit for iOS compatibility
             "-crf", str(cfg["crf"]),
             "-preset", cfg["preset"],
             "-an",  # strip audio
+            # Force SDR color metadata (iPhone HDR BT.2020/HLG → SDR BT.709)
+            "-bsf:v", "h264_metadata=colour_primaries=1:transfer_characteristics=1:matrix_coefficients=1",
             "-movflags", "+faststart",
             dst,
         ]
