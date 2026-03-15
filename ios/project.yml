@@ -30,16 +30,8 @@ targets:
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.9"
-        INFOPLIST_FILE: ""
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
-        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
-        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait"
-        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "ClimbPost needs access to your photo library to find climbing videos"
-        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "ClimbPost uses your location to match videos with climbing gyms"
-        INFOPLIST_KEY_UIBackgroundModes: "fetch remote-notification"
+        INFOPLIST_FILE: ClimbPost/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
     entitlements:
       path: ClimbPost/ClimbPost.entitlements
       properties:

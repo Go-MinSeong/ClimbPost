@@ -195,7 +195,11 @@ struct ClipDetailView: View {
     private func setupPlayer() {
         // Use static file URL (no auth needed) — prefer edited, fallback to clip
         let videoPath = clip.editedUrl ?? clip.clipUrl
-        guard let path = videoPath else { return }
+        NSLog("[Player] editedUrl=\(clip.editedUrl ?? "nil"), clipUrl=\(clip.clipUrl ?? "nil")")
+        guard let path = videoPath else {
+            NSLog("[Player] No video path available")
+            return
+        }
 
         let urlString: String
         if path.hasPrefix("http") {
@@ -203,9 +207,27 @@ struct ClipDetailView: View {
         } else {
             urlString = "\(Config.baseURLString)\(path)"
         }
-        guard let url = URL(string: urlString) else { return }
+        NSLog("[Player] Loading: \(urlString)")
+        guard let url = URL(string: urlString) else {
+            NSLog("[Player] Invalid URL: \(urlString)")
+            return
+        }
 
         let item = AVPlayerItem(url: url)
+
+        // Observe player item status for errors
+        NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemFailedToPlayToEndTime,
+            object: item,
+            queue: .main
+        ) { notification in
+            if let error = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error {
+                NSLog("[Player] Playback error: \(error)")
+            }
+        }
+
         player = AVPlayer(playerItem: item)
+        player?.play()
+        NSLog("[Player] Player created and play() called")
     }
 }
