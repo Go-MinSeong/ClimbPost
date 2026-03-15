@@ -1,5 +1,8 @@
 import SwiftUI
 import AVKit
+import os.log
+
+private let logger = Logger(subsystem: "com.climbpost.app", category: "Player")
 
 struct ClipDetailView: View {
     let clip: Clip
@@ -193,41 +196,28 @@ struct ClipDetailView: View {
     // MARK: - Setup
 
     private func setupPlayer() {
-        // Use static file URL (no auth needed) — prefer edited, fallback to clip
+        // Download video first, then play locally (HTTP streaming unreliable on simulator)
         let videoPath = clip.editedUrl ?? clip.clipUrl
-        NSLog("[Player] editedUrl=\(clip.editedUrl ?? "nil"), clipUrl=\(clip.clipUrl ?? "nil")")
-        guard let path = videoPath else {
-            NSLog("[Player] No video path available")
-            return
-        }
+        guard let path = videoPath else { return }
 
-        let urlString: String
-        if path.hasPrefix("http") {
-            urlString = path
-        } else {
-            urlString = "\(Config.baseURLString)\(path)"
-        }
-        NSLog("[Player] Loading: \(urlString)")
-        guard let url = URL(string: urlString) else {
-            NSLog("[Player] Invalid URL: \(urlString)")
-            return
-        }
+        let urlString = path.hasPrefix("http") ? path : "\(Config.baseURLString)\(path)"
+        guard let url = URL(string: urlString) else { return }
 
-        let item = AVPlayerItem(url: url)
+        Task {
+            do {
+                let (localURL, _) = try await URLSession.shared.download(from: url)
+                let dest = FileManager.default.temporaryDirectory.appendingPathComponent("\(clip.id).mp4")
+                try? FileManager.default.removeItem(at: dest)
+                try FileManager.default.moveItem(at: localURL, to: dest)
 
-        // Observe player item status for errors
-        NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemFailedToPlayToEndTime,
-            object: item,
-            queue: .main
-        ) { notification in
-            if let error = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error {
-                NSLog("[Player] Playback error: \(error)")
+                await MainActor.run {
+                    let p = AVPlayer(url: dest)
+                    player = p
+                    p.play()
+                }
+            } catch {
+                logger.error("[Player] Download failed: \(error.localizedDescription)")
             }
         }
-
-        player = AVPlayer(playerItem: item)
-        player?.play()
-        NSLog("[Player] Player created and play() called")
     }
 }

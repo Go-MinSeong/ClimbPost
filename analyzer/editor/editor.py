@@ -103,6 +103,7 @@ class EditorStage(BaseStage):
             "-t", f"{duration:.3f}",
             "-vf", vf,
             "-c:v", cfg["video_codec"],
+            "-pix_fmt", "yuv420p",  # 8-bit for iOS compatibility
             "-crf", str(cfg["crf"]),
             "-preset", cfg["preset"],
             "-an",  # strip audio
