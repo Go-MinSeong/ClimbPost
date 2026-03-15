@@ -91,7 +91,7 @@ class EditorStage(BaseStage):
         # Build FFmpeg filter: crop → scale
         vf = (
             f"crop={crop_w}:{crop_h}:{crop_x}:{crop_y},"
-            f"scale={out_w}:{out_h}"
+            f"scale={out_w}:{out_h},format=yuv420p"
         )
 
         # Duration limit
@@ -103,7 +103,10 @@ class EditorStage(BaseStage):
             "-t", f"{duration:.3f}",
             "-vf", vf,
             "-c:v", cfg["video_codec"],
-            "-pix_fmt", "yuv420p",  # 8-bit for iOS compatibility
+            "-pix_fmt", "yuv420p",       # 8-bit for iOS compatibility
+            "-color_primaries", "bt709",  # SDR color metadata (iPhone HDR → SDR)
+            "-color_trc", "bt709",
+            "-colorspace", "bt709",
             "-crf", str(cfg["crf"]),
             "-preset", cfg["preset"],
             "-an",  # strip audio
