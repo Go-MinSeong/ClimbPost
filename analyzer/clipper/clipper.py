@@ -6,8 +6,9 @@ import subprocess
 import uuid
 
 import cv2
-import mediapipe as mp
 import numpy as np
+import torch
+from ultralytics import YOLO
 
 from analyzer.pipeline.base_stage import BaseStage
 from analyzer.pipeline.context import ClipInfo, PipelineContext
@@ -23,6 +24,8 @@ _DEFAULTS = {
     "rest_threshold": 0.65,    # y > this = person is resting (lower part of frame)
     "gap_sec": 5,              # seconds of rest to end a climbing segment
 }
+
+_YOLO_MODEL_PATH = os.environ.get("YOLO_MODEL", "yolov8m-pose.pt")
 
 
 class ClipperStage(BaseStage):
@@ -81,7 +84,7 @@ class ClipperStage(BaseStage):
         return context
 
     # ------------------------------------------------------------------
-    # Segment detection using MediaPipe Pose
+    # Segment detection using YOLOv8-pose
     # ------------------------------------------------------------------
 
     def _detect_segments(self, video_path: str, cfg: dict) -> list[tuple[float, float]]:
@@ -108,12 +111,8 @@ class ClipperStage(BaseStage):
         gap_sec = cfg.get("gap_sec", 5)
         gap_frames = int(gap_sec * cfg["sample_fps"])
 
-        pose = mp.solutions.pose.Pose(
-            static_image_mode=False,
-            model_complexity=0,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5,
-        )
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model = YOLO(_YOLO_MODEL_PATH)
 
         climbing = False
         rest_count = 0
@@ -131,9 +130,8 @@ class ClipperStage(BaseStage):
                 continue
 
             t = frame_idx / fps
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = pose.process(rgb)
-            person_y = self._get_center_y(results)
+            results = model(frame, device=device, verbose=False)
+            person_y = self._get_center_y(results[0]) if results else None
 
             is_climbing = person_y is not None and person_y < climb_thresh
             is_resting = person_y is None or person_y > rest_thresh
@@ -162,16 +160,26 @@ class ClipperStage(BaseStage):
         if climbing:
             segments.append((seg_start_time, (total_frames - 1) / fps))
 
-        pose.close()
         cap.release()
         return segments
 
     @staticmethod
-    def _get_center_y(results) -> float | None:
-        """Return normalized y-center of detected pose landmarks, or None."""
-        if not results.pose_landmarks:
+    def _get_center_y(result) -> float | None:
+        """Extract center_y from YOLOv8 pose result for one frame."""
+        if result.keypoints is None or len(result.keypoints) == 0:
             return None
-        ys = [lm.y for lm in results.pose_landmarks.landmark if lm.visibility > 0.5]
+        # Take the first detected person
+        kpts = result.keypoints.xy[0]  # shape (17, 2), pixel coords
+        conf = result.keypoints.conf[0]  # shape (17,), confidence scores
+
+        # Use shoulders [5,6] and hips [11,12]
+        indices = [5, 6, 11, 12]
+        ys = []
+        h = result.orig_shape[0]  # frame height for normalization
+        for idx in indices:
+            if conf[idx] > 0.3:
+                ys.append(float(kpts[idx, 1]) / h)
+
         if not ys:
             return None
         return float(np.mean(ys))

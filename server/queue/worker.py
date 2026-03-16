@@ -11,7 +11,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from server.config.settings import MOCK_ANALYSIS, STORAGE_ROOT
+from server.config.settings import MOCK_ANALYSIS, STORAGE_ROOT, ANALYZER_URL
 from server.db.database import SessionLocal
 from server.db.models import Job, UploadSession, RawVideo, Clip, Gym
 from server.push.service import send_push
@@ -100,10 +100,8 @@ def _load_color_map(gym: Gym | None, gym_id: str) -> dict:
 
 
 async def _real_analyze(job: Job, db: Session) -> None:
-    """Run the actual analyzer pipeline on uploaded videos."""
-    from analyzer.pipeline.context import PipelineContext, RawVideoInfo
-    from analyzer.pipeline.orchestrator import Pipeline
-    from analyzer.config.settings import PIPELINE_STAGES
+    """Run the actual analyzer pipeline via the analyzer microservice."""
+    import httpx
 
     # 1. Query raw videos and session info
     raw_video_records = db.query(RawVideo).filter(RawVideo.session_id == job.session_id).all()
@@ -117,7 +115,7 @@ async def _real_analyze(job: Job, db: Session) -> None:
     gym = db.query(Gym).filter(Gym.id == gym_id).first() if gym_id else None
     color_map = _load_color_map(gym, gym_id)
 
-    # 3. Build RawVideoInfo list with file path conversion and duration
+    # 3. Build raw video list with file path conversion and duration
     raw_videos = []
     for rv in raw_video_records:
         file_path = _resolve_file_path(rv.file_url)
@@ -128,45 +126,55 @@ async def _real_analyze(job: Job, db: Session) -> None:
             except (ValueError, FileNotFoundError):
                 logger.warning("Could not get duration for %s, defaulting to 0", file_path)
                 duration = 0.0
-        raw_videos.append(
-            RawVideoInfo(
-                raw_video_id=rv.id,
-                file_path=file_path,
-                duration_sec=duration,
-            )
-        )
+        raw_videos.append({"raw_video_id": rv.id, "file_path": file_path, "duration_sec": duration})
 
-    # 4. Build pipeline context
-    context = PipelineContext(
-        session_id=job.session_id,
-        gym_id=gym_id,
-        color_map=color_map,
-        raw_videos=raw_videos,
-        storage_root=STORAGE_ROOT,
-    )
-
-    # 5. Run pipeline (CPU/GPU-bound, run in executor to avoid blocking event loop)
-    config = {
-        "clipper": {
-            "motion_threshold": 0.04,   # less sensitive (was 0.02)
-            "still_frames": 6,          # longer pause to end clip (was 4)
-            "min_climb_sec": 10,        # min 10s clips (was 5)
-        },
-        "classifier": {
-            "top_zone_ratio": 0.30,     # top 30% = success zone (was 0.20)
-            "hold_frames": 1,           # 1 frame in top = success (was 2)
-            "fall_dy_threshold": 0.20,  # bigger fall needed for fail (was 0.15)
-        },
-        "detector": {
-            "min_saturation": 30,       # detect less saturated colors (was 50)
-            "max_samples": 20,          # more frames to sample (was 10)
+    # 4. Call analyzer microservice
+    payload = {
+        "session_id": job.session_id,
+        "gym_id": gym_id,
+        "color_map": color_map,
+        "raw_videos": raw_videos,
+        "storage_root": STORAGE_ROOT,
+        "pipeline_config": {
+            "clipper": {"motion_threshold": 0.04, "still_frames": 6, "min_climb_sec": 10},
+            "classifier": {"top_zone_ratio": 0.30, "hold_frames": 1, "fall_dy_threshold": 0.20},
+            "detector": {"min_saturation": 30, "max_samples": 20},
         },
     }
-    pipeline = Pipeline(PIPELINE_STAGES, config)
-    loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(None, pipeline.run, context)
 
-    # 6. Save clips to DB (convert absolute paths to relative /storage/ URLs)
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        # Step 1: Submit job
+        response = await client.post(f"{ANALYZER_URL}/jobs", json=payload)
+        response.raise_for_status()
+        job_id = response.json()["job_id"]
+        logger.info("Analyzer job submitted: %s for session %s", job_id, job.session_id)
+
+        # Step 2: Poll until completed or failed (5s interval, max 30 min = 360 attempts)
+        for attempt in range(360):
+            await asyncio.sleep(5)
+            status_resp = await client.get(f"{ANALYZER_URL}/jobs/{job_id}")
+            status_resp.raise_for_status()
+            status_data = status_resp.json()
+            status = status_data["status"]
+            progress = status_data.get("progress_pct", 0)
+            logger.debug("Job %s: status=%s progress=%d%%", job_id, status, progress)
+
+            if status == "completed":
+                break
+            elif status == "failed":
+                error = status_data.get("error", "unknown error")
+                raise RuntimeError(f"Analyzer job {job_id} failed: {error}")
+            elif status == "cancelled":
+                raise RuntimeError(f"Analyzer job {job_id} was cancelled")
+        else:
+            raise TimeoutError(f"Analyzer job {job_id} timed out after 30 minutes")
+
+        # Step 3: Fetch result
+        result_resp = await client.get(f"{ANALYZER_URL}/jobs/{job_id}/result")
+        result_resp.raise_for_status()
+        data = result_resp.json()
+
+    # 5. Save clips to DB (convert absolute paths to relative /storage/ URLs)
     def _to_url(abs_path: str | None) -> str | None:
         if not abs_path:
             return None
@@ -176,25 +184,25 @@ async def _real_analyze(job: Job, db: Session) -> None:
         except ValueError:
             return abs_path
 
-    for clip in result.clips:
+    for clip in data["clips"]:
         clip_record = Clip(
-            raw_video_id=clip.raw_video_id,
-            gym_id=context.gym_id,
-            start_time=clip.start_time,
-            end_time=clip.end_time,
-            duration_sec=clip.duration_sec,
-            difficulty=clip.difficulty,
-            tape_color=clip.tape_color,
-            result=clip.result,
-            is_me=clip.is_me,
-            thumbnail_url=_to_url(clip.thumbnail_path),
-            clip_url=_to_url(clip.clip_path),
-            edited_url=_to_url(clip.edited_path),
+            raw_video_id=clip["raw_video_id"],
+            gym_id=gym_id,
+            start_time=clip["start_time"],
+            end_time=clip["end_time"],
+            duration_sec=clip["duration_sec"],
+            difficulty=clip.get("difficulty"),
+            tape_color=clip.get("tape_color"),
+            result=clip.get("result"),
+            is_me=clip.get("is_me"),
+            thumbnail_url=_to_url(clip.get("thumbnail_path")),
+            clip_url=_to_url(clip.get("clip_path")),
+            edited_url=_to_url(clip.get("edited_path")),
         )
         db.add(clip_record)
 
     db.commit()
-    logger.info("Real analysis complete for session %s: %d clip(s) saved", job.session_id, len(result.clips))
+    logger.info("Real analysis complete for session %s: %d clip(s) saved", job.session_id, len(data["clips"]))
 
 
 async def process_job(job_id: str) -> None:

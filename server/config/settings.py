@@ -32,6 +32,9 @@ CLIPS_DIR = f"{STORAGE_ROOT}/clips/{{session_id}}/"
 EDITED_DIR = f"{STORAGE_ROOT}/edited/{{session_id}}/"
 THUMBNAILS_DIR = f"{STORAGE_ROOT}/thumbnails/{{session_id}}/"
 
+# Analyzer microservice URL
+ANALYZER_URL = os.getenv("ANALYZER_URL", "http://localhost:8001")
+
 # Mock analysis mode (skip GPU pipeline, generate fake results)
 MOCK_ANALYSIS = os.getenv("MOCK_ANALYSIS", "false").lower() in ("true", "1", "yes")
 

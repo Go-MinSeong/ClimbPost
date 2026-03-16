@@ -1,4 +1,5 @@
-mediapipe>=0.10
+ultralytics>=8.0
+torch>=2.0
 opencv-python>=4.8
 ffmpeg-python>=0.2
 numpy>=1.24

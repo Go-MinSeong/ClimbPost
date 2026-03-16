@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 import logging
+import os
 
 import cv2
-import mediapipe as mp
 import numpy as np
+import torch
+from ultralytics import YOLO
 
 from analyzer.pipeline.base_stage import BaseStage
 from analyzer.pipeline.context import PipelineContext
 
 logger = logging.getLogger(__name__)
+
+_YOLO_MODEL_PATH = os.environ.get("YOLO_MODEL", "yolov8m-pose.pt")
 
 # Default settings (overridable via config dict)
 _DEFAULTS = {
@@ -26,7 +30,7 @@ class ClassifierStage(BaseStage):
 
     Strategy (minimum-viable version):
       1. Read the last *tail_seconds* of the clip.
-      2. Run MediaPipe Pose on sampled frames.
+      2. Run YOLOv8-pose on sampled frames.
       3. If the climber's centre-y sits in the top 20 % of the frame for
          *hold_frames* consecutive samples → success.
       4. If a sudden downward jump (> fall_dy_threshold) is detected → fail.
@@ -65,18 +69,10 @@ class ClassifierStage(BaseStage):
 
         fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        duration = total_frames / fps
-
-        # Analyze the full clip (not just the tail) for better accuracy
-        start_frame = 0
         sample_interval = max(1, int(fps / cfg["sample_fps"]))
 
-        pose = mp.solutions.pose.Pose(
-            static_image_mode=False,
-            model_complexity=0,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5,
-        )
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model = YOLO(_YOLO_MODEL_PATH)
 
         y_positions: list[float] = []
         frame_idx = 0
@@ -86,23 +82,21 @@ class ClassifierStage(BaseStage):
             if not ret:
                 break
 
-            if frame_idx < start_frame or frame_idx % sample_interval != 0:
+            if frame_idx % sample_interval != 0:
                 frame_idx += 1
                 continue
 
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = pose.process(rgb)
-            center_y = self._get_center_y(results)
+            results = model(frame, device=device, verbose=False)
+            center_y = self._get_center_y(results[0]) if results else None
             if center_y is not None:
                 y_positions.append(center_y)
 
             frame_idx += 1
 
-        pose.close()
         cap.release()
 
         if not y_positions:
-            logger.warning("Classifier: no pose detected in tail frames")
+            logger.warning("Classifier: no pose detected in frames")
             return "fail"
 
         return self._decide(y_positions, cfg)
@@ -149,11 +143,21 @@ class ClassifierStage(BaseStage):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _get_center_y(results) -> float | None:
+    def _get_center_y(result) -> float | None:
         """Return normalised y-centre of detected pose, or None."""
-        if not results.pose_landmarks:
+        if result.keypoints is None or len(result.keypoints) == 0:
             return None
-        ys = [lm.y for lm in results.pose_landmarks.landmark if lm.visibility > 0.5]
+        kpts = result.keypoints.xy[0]   # shape (17, 2), pixel coords
+        conf = result.keypoints.conf[0]  # shape (17,), confidence scores
+        h = result.orig_shape[0]
+
+        # Use shoulders [5,6] and hips [11,12]
+        indices = [5, 6, 11, 12]
+        ys = []
+        for idx in indices:
+            if conf[idx] > 0.3:
+                ys.append(float(kpts[idx, 1]) / h)
+
         if not ys:
             return None
         return float(np.mean(ys))

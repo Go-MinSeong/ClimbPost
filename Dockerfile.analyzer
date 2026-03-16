@@ -1,0 +1,25 @@
+FROM nvidia/cuda:12.3.2-cudnn9-runtime-ubuntu22.04
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 python3.11-dev python3-pip ffmpeg \
+    libgl1-mesa-glx libglib2.0-0 libsm6 libxext6 libxrender-dev libgomp1 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN ln -sf python3.11 /usr/bin/python3 && ln -sf python3 /usr/bin/python
+
+WORKDIR /app
+
+COPY analyzer/requirements.txt /app/analyzer/requirements.txt
+RUN pip3 install --no-cache-dir -r /app/analyzer/requirements.txt
+RUN pip3 install --no-cache-dir "fastapi>=0.110.0" "uvicorn>=0.27.0" "pydantic>=2.0.0"
+
+COPY analyzer/ /app/analyzer/
+
+ENV PYTHONPATH=/app \
+    PYTHONUNBUFFERED=1 \
+    STORAGE_ROOT=/data/storage
+
+EXPOSE 8001
+
+CMD ["uvicorn", "analyzer.main:app", "--host", "0.0.0.0", "--port", "8001", "--timeout-keep-alive", "620"]

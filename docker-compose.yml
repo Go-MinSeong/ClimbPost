@@ -1,0 +1,51 @@
+version: "3.9"
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:////data/climbpost.db
+      - STORAGE_ROOT=/data/storage
+      - MOCK_ANALYSIS=false
+      - ANALYZER_URL=http://analyzer:8001
+      - JWT_SECRET=${JWT_SECRET:-climbpost-dev-secret-change-in-prod!}
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+    volumes:
+      - climbpost_data:/data
+    depends_on:
+      analyzer:
+        condition: service_healthy
+    restart: unless-stopped
+
+  analyzer:
+    build:
+      context: .
+      dockerfile: Dockerfile.analyzer
+    ports:
+      - "8001:8001"
+    environment:
+      - STORAGE_ROOT=/data/storage
+    volumes:
+      - climbpost_data:/data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+volumes:
+  climbpost_data:
+    driver: local

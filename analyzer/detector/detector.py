@@ -1,21 +1,25 @@
 from __future__ import annotations
 
 import logging
+import os
 
 import cv2
-import mediapipe as mp
 import numpy as np
+import torch
+from ultralytics import YOLO
 
 from analyzer.pipeline.base_stage import BaseStage
 from analyzer.pipeline.context import PipelineContext
 
 logger = logging.getLogger(__name__)
 
+_YOLO_MODEL_PATH = os.environ.get("YOLO_MODEL", "yolov8m-pose.pt")
+
 # Default settings (overridable via config dict)
 _DEFAULTS = {
     "sample_fps": 1,            # frames per second to sample
     "max_samples": 10,          # cap sampled frames per clip
-    "roi_pad_ratio": 0.15,      # expand detected hand region by this ratio
+    "roi_pad_ratio": 0.20,      # expand detected hand region by this ratio
     "min_saturation": 50,       # minimum S in HSV to count as coloured
     "min_value": 50,            # minimum V in HSV to avoid near-black
 }
@@ -37,7 +41,7 @@ class DetectorStage(BaseStage):
 
     Strategy:
       1. Sample frames from the clip.
-      2. Use MediaPipe Pose to locate the climber's hands.
+      2. Use YOLOv8-pose to locate the climber's hands.
       3. Extract a region around each hand (where hold tape is visible).
       4. Analyse HSV histogram of those regions to find dominant tape colour.
       5. Map the colour name via context.color_map → difficulty string.
@@ -81,15 +85,11 @@ class DetectorStage(BaseStage):
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         sample_interval = max(1, int(fps / cfg["sample_fps"]))
 
-        pose = mp.solutions.pose.Pose(
-            static_image_mode=False,
-            model_complexity=0,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5,
-        )
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model = YOLO(_YOLO_MODEL_PATH)
 
-        # Accumulate colour votes across sampled frames
-        color_votes: dict[str, int] = {}
+        # Accumulate confidence-weighted colour votes across sampled frames
+        color_votes: dict[str, float] = {}
         samples = 0
         frame_idx = 0
 
@@ -104,26 +104,23 @@ class DetectorStage(BaseStage):
             if samples >= cfg["max_samples"]:
                 break
 
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = pose.process(rgb)
-            rois = self._get_hand_rois(results, frame, cfg["roi_pad_ratio"])
+            results = model(frame, device=device, verbose=False)
+            rois_with_conf = self._get_hand_rois(results[0] if results else None, frame, cfg["roi_pad_ratio"])
 
-            for roi in rois:
+            for roi, confidence in rois_with_conf:
                 color = self._dominant_color_in_roi(roi, cfg)
                 if color:
-                    color_votes[color] = color_votes.get(color, 0) + 1
+                    color_votes[color] = color_votes.get(color, 0.0) + confidence
 
             samples += 1
             frame_idx += 1
 
-        pose.close()
         cap.release()
 
         if not color_votes:
             return None
 
-        # Return the colour with the most votes
-        return max(color_votes, key=color_votes.get)  # type: ignore[arg-type]
+        return max(color_votes, key=color_votes.get)
 
     # ------------------------------------------------------------------
     # Hand ROI extraction
@@ -131,21 +128,24 @@ class DetectorStage(BaseStage):
 
     @staticmethod
     def _get_hand_rois(
-        results, frame: np.ndarray, pad_ratio: float
-    ) -> list[np.ndarray]:
-        """Extract image patches around detected wrists."""
-        if not results.pose_landmarks:
+        result, frame: np.ndarray, pad_ratio: float
+    ) -> list[tuple[np.ndarray, float]]:
+        """Extract image patches around detected wrists with their keypoint confidence."""
+        if result is None or result.keypoints is None or len(result.keypoints) == 0:
             return []
 
         h, w = frame.shape[:2]
-        rois: list[np.ndarray] = []
-        # MediaPipe Pose landmarks 15=left_wrist, 16=right_wrist
-        for idx in (15, 16):
-            lm = results.pose_landmarks.landmark[idx]
-            if lm.visibility < 0.5:
+        kpts = result.keypoints.xy[0]   # shape (17, 2)
+        conf = result.keypoints.conf[0]  # shape (17,)
+
+        rois: list[tuple[np.ndarray, float]] = []
+        # YOLOv8 COCO keypoints: 9=left_wrist, 10=right_wrist
+        for idx in (9, 10):
+            kp_conf = float(conf[idx])
+            if kp_conf < 0.3:
                 continue
 
-            cx, cy = int(lm.x * w), int(lm.y * h)
+            cx, cy = int(kpts[idx, 0]), int(kpts[idx, 1])
             pad = int(max(h, w) * pad_ratio)
 
             x1 = max(0, cx - pad)
@@ -155,7 +155,7 @@ class DetectorStage(BaseStage):
 
             roi = frame[y1:y2, x1:x2]
             if roi.size > 0:
-                rois.append(roi)
+                rois.append((roi, kp_conf))
 
         return rois
 
