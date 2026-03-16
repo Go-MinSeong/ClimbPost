@@ -4,85 +4,97 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ClimbPost (클라임포스트) — iOS app that auto-analyzes climbing videos and prepares Instagram carousel posts. Three-tier architecture: iOS (Swift) ↔ Backend API ↔ Analysis Server (Python/GPU).
+ClimbPost (클라임포스트) — iOS app that auto-analyzes climbing videos and prepares Instagram carousel posts. Three-tier architecture: iOS (Swift) ↔ Backend API (FastAPI) ↔ Analysis Server (Python/MediaPipe).
 
 ## Architecture
 
-- **ios/ClimbPost/**: Swift iOS app — Auth, Gallery scanning, Upload, Result preview, Instagram Share Sheet, Push notifications
-- **server/**: Backend API — REST endpoints, JWT auth, job queue, APNs, database
-- **analyzer/**: Python GPU pipeline — clipper → classifier → detector → identifier → editor (5-stage pipeline)
-- **data/**: Gym GPS database (`gyms.json`) and tape color→difficulty mappings (`color_maps/`)
+- **ios/ClimbPost/**: SwiftUI iOS app (22 files) — Auth, Gallery GPS scan, Upload, Analysis waiting, Result grid, Clip detail player, Carousel builder, Instagram share, Push
+- **server/**: FastAPI backend (15 API endpoints) — JWT auth, multipart upload, job queue, SQLite, static file serving, APNs push
+- **analyzer/**: 5-stage pipeline — Clipper (MediaPipe Pose) → Classifier (y-position) → Detector (HSV color) → Identifier (DBSCAN) → Editor (FFmpeg HDR→SDR)
+- **data/**: `gyms.json` (gym GPS DB), `color_maps/` (tape color→difficulty), `storage/` (runtime clips/thumbnails/edited)
 
-## Key Data Flow
+## Key Technical Details
 
-Login → gallery scan (local GPS+date match against gyms.json) → upload → server queues analysis → 5-stage GPU pipeline → push notification → user reviews/filters clips → Instagram share via Share Sheet
+**iPhone HDR video handling**: iPhones record BT.2020/HLG 10-bit. Editor must convert to SDR using `colorspace=all=bt709:iall=bt2020:format=yuv420p` + `h264_metadata` BSF. Without this, videos show black or overexposed on iOS AVPlayer.
 
-## Analysis Pipeline Stages
+**Video playback**: AVPlayer cannot stream HTTP reliably in simulator. ClipDetailView downloads to local file first, then plays via `AVPlayer(url: localFile)`.
 
-1. **Clipper**: Extract climbing segments from raw video
-2. **Classifier**: Success/fail determination (top hold reached or fall)
-3. **Detector**: Tape color recognition → difficulty mapping (V0-V8+)
-4. **Identifier**: User identification via appearance clustering (Re-ID)
-5. **Editor**: Crop to 3:4 vertical, max 60s per clip
+**iOS Config**: Simulator uses `localhost:8000`, real device uses Mac IP (`172.30.1.82:8000`). See `ios/ClimbPost/Common/Config.swift`.
 
-## Development Setup
+**Simulator bypasses** (`#if targetEnvironment(simulator)`): auto-login, photo library auth skip, GPS filter skip. These are in ContentView.swift and GalleryService.swift.
+
+## Commands
 
 ```bash
-# Python analyzer environment
-scripts/setup.sh   # creates analyzer/.venv
-source analyzer/.venv/bin/activate
+# Server — must use --host 0.0.0.0 for real device access
+python3 -m uvicorn server.main:app --host 0.0.0.0 --port 8000          # real pipeline
+MOCK_ANALYSIS=true python3 -m uvicorn server.main:app --host 0.0.0.0 --port 8000  # mock mode
+
+# Create test user (first time after DB reset)
+python3 -c "
+from server.db.database import SessionLocal, create_tables
+from server.db.models import User, Gym
+import json
+create_tables()
+db = SessionLocal()
+db.add(User(id='dev-user-001', provider='apple', email='test@climbpost.com'))
+db.add(Gym(id='gym_001', name='더클라임 강남', latitude=37.4967, longitude=127.0276, color_map=json.dumps({'gym_id':'gym_001','mapping':{'노랑':'V0-V1','초록':'V2-V3','파랑':'V4-V5','빨강':'V6-V7','검정':'V8+'}})))
+db.commit(); db.close()
+"
+
+# iOS
+cd ios && xcodegen generate --spec project.yml && open ClimbPost.xcodeproj
+
+# Tests
+python3 -m pytest tests/ -v                     # all 83 tests
+python3 -m pytest tests/ -v -m "not slow"       # fast only (no video processing)
+python3 -m pytest tests/server/ -v              # server API tests (45)
+python3 -m pytest tests/analyzer/ -v            # analyzer tests (38)
+python3 -m pytest tests/test_integration.py -v  # E2E integration (12)
+
+# Single test
+python3 -m pytest tests/server/test_clips.py::test_list_clips_with_data -v
+
+# Simulator video import
+xcrun simctl addmedia "iPhone 17 Pro" /path/to/video.mov
 ```
 
 ## Development Philosophy
 
 - **Vibe Coding**: AI agents handle technical decisions, maximize delegation
-- **1 prompt = 1 commit** for traceability (실제로는 1 prompt → 멀티에이전트 → 여러 커밋 가능)
-- All prompts logged in `docs/prompts/` (NNN-제목.md 형식)
-- 커밋 시 `scripts/log-prompt.sh`가 자동으로 프롬프트 로그 템플릿 생성
+- All prompts logged in `docs/prompts/` — automated via Claude Code hooks
+- `.claude/hooks/` auto-tracks: session time, prompt content, test execution, commit logging
 
-## Prompt Logging Convention
+## Hooks (auto-enforced)
 
-커밋할 때 반드시 프롬프트 기록을 남긴다:
-```
-docs/prompts/NNN-제목.md
-```
-각 파일에는: 날짜, 프롬프트 원문, 커밋 해시, 에이전트 방식, 결과 요약을 기록한다.
-멀티에이전트(whip)로 여러 커밋이 생긴 경우 하나의 프롬프트 파일에 모든 커밋을 매핑한다.
-
-## Running the App (Development)
-
-```bash
-# 1. Server (MOCK mode for iOS dev without GPU)
-cd /path/to/climbPost
-MOCK_ANALYSIS=true python3 -m uvicorn server.main:app --port 8000
-
-# 2. Server (REAL pipeline — needs mediapipe, opencv, ffmpeg)
-python3 -m uvicorn server.main:app --port 8000
-
-# 3. iOS (Xcode)
-cd ios && xcodegen generate --spec project.yml
-open ClimbPost.xcodeproj  # Run on simulator
-
-# 4. Tests
-python3 -m pytest tests/ -v                    # all 83 tests
-python3 -m pytest tests/ -v -m "not slow"      # fast only (74 tests)
-```
+| Hook | Trigger | Action |
+|------|---------|--------|
+| `session-start.sh` | Session start | Start timer, record session ID |
+| `prompt-log.sh` | Every prompt | Buffer prompt content + count |
+| `post-commit.sh` | git commit | Auto-create `docs/prompts/NNN-*.md` with time + prompts |
+| `auto-test.sh` | Edit .py file | Async run relevant pytest suite |
+| `pre-stop.sh` | Session end | Warn uncommitted changes, show elapsed time |
 
 ## Design System
 
-- Brand color: Coral #FF6B35, Dark navy #1A1A2E
-- iOS theme: `ios/ClimbPost/Common/Theme.swift` (AppColor, AppFont, PrimaryButtonStyle)
-- All UI text in Korean (한국어)
+- Brand: Coral `#FF6B35`, Dark navy `#1A1A2E`
+- Theme: `ios/ClimbPost/Common/Theme.swift` (AppColor, AppFont, PrimaryButtonStyle)
+- All UI text in Korean. Nav bars use `.toolbarColorScheme(.dark)` on every screen.
+- Bundle ID: `com.rmsdlf2580.climbpost` (Personal Team, no Sign In with Apple entitlement)
 
-## Constraints
+## Known Limitations
 
-- Fixed camera (tripod) indoor climbing videos only
-- Vertical orientation assumed
-- ~20 videos per visit, 1-10 min each
-- PHASE 1: home network infrastructure (backend + GPU on same machine)
+- Classifier accuracy ~26% (y-position heuristic, needs ML model upgrade)
+- Detector outputs mostly V0-V1 (indoor lighting HSV sensitivity)
+- APNs push not configured (needs paid Apple Developer account + key)
+- Gallery scans last 5 days, not just today
+- `PHImageManager.requestImage` must use `.highQualityFormat` (not `.opportunistic`) to avoid continuation crash
 
 ## Documentation
 
 - `docs/planning.md` — master plan, motivation, milestones
-- `docs/phase1-spec.md` — detailed PHASE 1 feature spec with acceptance criteria
-- `docs/architecture.md` — system architecture, DB schema, network topology
+- `docs/phase1-spec.md` — PHASE 1 feature spec with acceptance criteria
+- `docs/architecture.md` — system architecture, DB schema
+- `docs/architecture-detail.md` — detailed file structure, API reference, pipeline stages
+- `docs/setup-guide.md` — step-by-step run instructions + troubleshooting
+- `docs/prompts/` — vibe coding prompt logs (auto-generated by hooks)
