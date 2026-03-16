@@ -78,3 +78,7 @@ logs/
 # Node (if used for server)
 node_modules/
 npm-debug.log*
+
+# Claude hooks temp files
+.claude/hooks/.current_session
+.claude/hooks/.prompts_buffer
