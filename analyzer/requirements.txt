@@ -1,7 +1,13 @@
-ultralytics>=8.0
-torch>=2.0
+onnxruntime-gpu>=1.17
+boxmot>=10.0
 opencv-python>=4.8
-ffmpeg-python>=0.2
 numpy>=1.24
 scikit-learn>=1.3
+
+# used by Stage 2, 3 (classifier, detector) — pending ONNX migration
+ultralytics>=8.0
+torch>=2.0
+
+# used by export_yolo26n.py
+ffmpeg-python>=0.2
 Pillow>=10.0

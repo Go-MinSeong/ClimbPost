@@ -4,120 +4,108 @@ import logging
 import os
 import subprocess
 import uuid
+from pathlib import Path
 
 import cv2
 import numpy as np
-import torch
-from ultralytics import YOLO
+import onnxruntime as ort
+from boxmot import ByteTrack
 
 from analyzer.pipeline.base_stage import BaseStage
 from analyzer.pipeline.context import ClipInfo, PipelineContext
 
 logger = logging.getLogger(__name__)
 
-# Default settings (overridable via config dict)
 _DEFAULTS = {
-    "sample_fps": 1,
-    "min_climb_sec": 8,
-    "buffer_sec": 2,
-    "climb_threshold": 0.55,   # y < this = person is climbing (upper part of frame)
-    "rest_threshold": 0.65,    # y > this = person is resting (lower part of frame)
-    "gap_sec": 5,              # seconds of rest to end a climbing segment
+    "sample_fps": 10,            # inference FPS (10 or 15 recommended)
+    "climb_threshold": 0.65,     # center_y < this → person is climbing
+    "gap_tolerance_sec": 3.0,    # non-climbing gap allowed within a segment
+    "padding_sec": 2.0,          # seconds added before/after segment
+    "min_clip_sec": 10.0,        # discard clips shorter than this
+    "max_clip_sec": 180.0,       # discard clips longer than this
+    "conf_threshold": 0.3,       # minimum detection confidence
+    "nms_threshold": 0.45,       # NMS IoU threshold
 }
 
-_YOLO_MODEL_PATH = os.environ.get("YOLO_MODEL", "yolov8m-pose.pt")
+_MODEL_PATH = os.environ.get(
+    "YOLO26N_ONNX",
+    str(Path(__file__).resolve().parent.parent / "models" / "yolo26n.onnx"),
+)
+_INFER_SIZE = 640
 
 
 class ClipperStage(BaseStage):
-    """Stage 1 — detect climbing segments and extract clips with FFmpeg."""
+    """Stage 1 — per-person climbing segment detection via YOLO26n-ONNX + ByteTrack."""
+
+    def __init__(self, config: dict) -> None:
+        super().__init__(config)
+        providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+        self._session = ort.InferenceSession(_MODEL_PATH, providers=providers)
+        self._input_name = self._session.get_inputs()[0].name
+        inp_shape = self._session.get_inputs()[0].shape
+        self._infer_h = inp_shape[2] if isinstance(inp_shape[2], int) else _INFER_SIZE
+        self._infer_w = inp_shape[3] if isinstance(inp_shape[3], int) else _INFER_SIZE
 
     @property
     def name(self) -> str:
         return "clipper"
 
     # ------------------------------------------------------------------
-    # Public entry point
+    # Pipeline entry point
     # ------------------------------------------------------------------
 
     def process(self, context: PipelineContext) -> PipelineContext:
         cfg = {**_DEFAULTS, **self.config.get("clipper", {})}
-
         for video in context.raw_videos:
             logger.info("Clipper: processing %s (%s)", video.raw_video_id, video.file_path)
-            segments = self._detect_segments(video.file_path, cfg)
-            logger.info("Clipper: found %d raw segment(s)", len(segments))
-
-            for start, end in segments:
-                # Apply buffer and clamp to video bounds
-                buf = cfg["buffer_sec"]
-                clip_start = max(0.0, start - buf)
-                clip_end = min(video.duration_sec, end + buf)
-                duration = clip_end - clip_start
-
-                if duration < cfg["min_climb_sec"]:
-                    logger.debug("Clipper: skipping short segment %.1f–%.1f (%.1fs)", clip_start, clip_end, duration)
-                    continue
-
+            segments = self._detect_segments(video.file_path, video.duration_sec, cfg)
+            logger.info("Clipper: %d valid segment(s) found", len(segments))
+            for track_id, start, end in segments:
                 clip_id = uuid.uuid4().hex[:12]
                 clip_dir = os.path.join(context.storage_root, context.session_id, "clips")
                 os.makedirs(clip_dir, exist_ok=True)
-
                 clip_path = os.path.join(clip_dir, f"{clip_id}.mp4")
-                thumb_path = os.path.join(clip_dir, f"{clip_id}_thumb.jpg")
-
-                self._extract_clip(video.file_path, clip_start, duration, clip_path)
-                self._extract_thumbnail(clip_path, thumb_path)
-
+                self._extract_clip(video.file_path, start, end - start, clip_path)
                 context.clips.append(
                     ClipInfo(
                         clip_id=clip_id,
                         raw_video_id=video.raw_video_id,
-                        start_time=clip_start,
-                        end_time=clip_end,
-                        duration_sec=duration,
+                        start_time=start,
+                        end_time=end,
+                        duration_sec=end - start,
                         clip_path=clip_path,
-                        thumbnail_path=thumb_path,
                     )
                 )
-                logger.info("Clipper: clip %s — %.1f–%.1fs (%.1fs)", clip_id, clip_start, clip_end, duration)
-
+                logger.info(
+                    "Clipper: clip %s  track=%d  %.1f–%.1fs (%.1fs)",
+                    clip_id, track_id, start, end, end - start,
+                )
         return context
 
     # ------------------------------------------------------------------
-    # Segment detection using YOLOv8-pose
+    # Segment detection
     # ------------------------------------------------------------------
 
-    def _detect_segments(self, video_path: str, cfg: dict) -> list[tuple[float, float]]:
-        """Return list of (start_sec, end_sec) climbing segments.
-
-        Strategy for fixed tripod camera:
-        - Person's center-y < climb_threshold → they are on the wall (climbing)
-        - Person's center-y > rest_threshold → they are on the ground (resting)
-        - No pose detected → resting / between attempts
-        - A climbing segment starts when person goes above climb_threshold
-          and ends after gap_sec of being below rest_threshold or undetected.
-        """
+    def _detect_segments(
+        self, video_path: str, duration_sec: float, cfg: dict
+    ) -> list[tuple[int, float, float]]:
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
             logger.error("Clipper: cannot open %s", video_path)
             return []
 
         fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         sample_interval = max(1, int(fps / cfg["sample_fps"]))
 
-        climb_thresh = cfg.get("climb_threshold", 0.55)
-        rest_thresh = cfg.get("rest_threshold", 0.65)
-        gap_sec = cfg.get("gap_sec", 5)
-        gap_frames = int(gap_sec * cfg["sample_fps"])
+        tracker = ByteTrack(
+            track_thresh=cfg["conf_threshold"],
+            track_buffer=int(cfg["gap_tolerance_sec"] * cfg["sample_fps"]),
+            match_thresh=0.8,
+            frame_rate=int(cfg["sample_fps"]),
+        )
 
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        model = YOLO(_YOLO_MODEL_PATH)
-
-        climbing = False
-        rest_count = 0
-        seg_start_time = 0.0
-        segments: list[tuple[float, float]] = []
+        # track_id → sorted list of timestamps where person was in climbing zone
+        climbing_times: dict[int, list[float]] = {}
 
         frame_idx = 0
         while True:
@@ -125,72 +113,41 @@ class ClipperStage(BaseStage):
             if not ret:
                 break
 
-            if frame_idx % sample_interval != 0:
-                frame_idx += 1
-                continue
+            if frame_idx % sample_interval == 0:
+                t = frame_idx / fps
+                frame_h = frame.shape[0]
+                dets = self._infer_person(frame, cfg)
+                tracks = tracker.update(dets, frame)
 
-            t = frame_idx / fps
-            results = model(frame, device=device, verbose=False)
-            person_y = self._get_center_y(results[0]) if results else None
-
-            is_climbing = person_y is not None and person_y < climb_thresh
-            is_resting = person_y is None or person_y > rest_thresh
-
-            if not climbing:
-                if is_climbing:
-                    climbing = True
-                    rest_count = 0
-                    seg_start_time = t
-                    logger.debug("Clipper: climb START at %.1fs (y=%.3f)", t, person_y)
-            else:
-                if is_resting:
-                    rest_count += 1
-                    if rest_count >= gap_frames:
-                        seg_end_time = t - gap_sec  # end before the gap
-                        segments.append((seg_start_time, seg_end_time))
-                        logger.debug("Clipper: climb END at %.1fs (gap)", seg_end_time)
-                        climbing = False
-                        rest_count = 0
-                else:
-                    rest_count = 0  # reset gap counter
+                for track in tracks:
+                    x1, y1, x2, y2 = track[0], track[1], track[2], track[3]
+                    tid = int(track[4])
+                    center_y = ((y1 + y2) / 2) / frame_h
+                    if center_y < cfg["climb_threshold"]:
+                        climbing_times.setdefault(tid, []).append(t)
 
             frame_idx += 1
 
-        # Close open segment
-        if climbing:
-            segments.append((seg_start_time, (total_frames - 1) / fps))
-
         cap.release()
-        return segments
-
-    @staticmethod
-    def _get_center_y(result) -> float | None:
-        """Extract center_y from YOLOv8 pose result for one frame."""
-        if result.keypoints is None or len(result.keypoints) == 0:
-            return None
-        # Take the first detected person
-        kpts = result.keypoints.xy[0]  # shape (17, 2), pixel coords
-        conf = result.keypoints.conf[0]  # shape (17,), confidence scores
-
-        # Use shoulders [5,6] and hips [11,12]
-        indices = [5, 6, 11, 12]
-        ys = []
-        h = result.orig_shape[0]  # frame height for normalization
-        for idx in indices:
-            if conf[idx] > 0.3:
-                ys.append(float(kpts[idx, 1]) / h)
-
-        if not ys:
-            return None
-        return float(np.mean(ys))
+        return _build_segments(climbing_times, duration_sec, cfg)
 
     # ------------------------------------------------------------------
-    # FFmpeg helpers
+    # ONNX inference
+    # ------------------------------------------------------------------
+
+    def _infer_person(self, frame: np.ndarray, cfg: dict) -> np.ndarray:
+        """Run YOLO26n on frame, return person detections [N, 6] (x1,y1,x2,y2,conf,cls)."""
+        h, w = frame.shape[:2]
+        blob, r, pad = _preprocess(frame, self._infer_h, self._infer_w)
+        raw = self._session.run(None, {self._input_name: blob})[0]
+        return _postprocess(raw, r, pad, (h, w), cfg)
+
+    # ------------------------------------------------------------------
+    # FFmpeg helper
     # ------------------------------------------------------------------
 
     @staticmethod
     def _extract_clip(src: str, start: float, duration: float, dst: str) -> None:
-        """Cut a clip from src using FFmpeg."""
         cmd = [
             "ffmpeg", "-y",
             "-ss", f"{start:.3f}",
@@ -202,26 +159,125 @@ class ClipperStage(BaseStage):
         ]
         subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
 
-    @staticmethod
-    def _extract_thumbnail(clip_path: str, thumb_path: str) -> None:
-        """Extract a single frame from the middle of a clip as a JPEG thumbnail."""
-        # Get clip duration
-        probe_cmd = [
-            "ffprobe", "-v", "error",
-            "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1",
-            clip_path,
-        ]
-        result = subprocess.run(probe_cmd, capture_output=True, text=True, check=True)
-        dur = float(result.stdout.strip())
-        mid = dur / 2.0
 
-        cmd = [
-            "ffmpeg", "-y",
-            "-ss", f"{mid:.3f}",
-            "-i", clip_path,
-            "-frames:v", "1",
-            "-q:v", "2",
-            thumb_path,
-        ]
-        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+# ------------------------------------------------------------------
+# Module-level helpers (pure functions, easier to test)
+# ------------------------------------------------------------------
+
+def _preprocess(
+    frame: np.ndarray, target_h: int, target_w: int
+) -> tuple[np.ndarray, float, tuple[int, int]]:
+    """Letterbox resize → [1, 3, H, W] float32 normalized to [0, 1]."""
+    h, w = frame.shape[:2]
+    r = min(target_h / h, target_w / w)
+    new_h, new_w = int(h * r), int(w * r)
+    resized = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+
+    pad_h = target_h - new_h
+    pad_w = target_w - new_w
+    top, left = pad_h // 2, pad_w // 2
+    bottom, right = pad_h - top, pad_w - left
+    padded = cv2.copyMakeBorder(
+        resized, top, bottom, left, right, cv2.BORDER_CONSTANT, value=(114, 114, 114)
+    )
+
+    blob = padded[:, :, ::-1].transpose(2, 0, 1).astype(np.float32) / 255.0
+    return np.expand_dims(blob, 0), r, (left, top)
+
+
+def _postprocess(
+    output: np.ndarray,
+    r: float,
+    pad: tuple[int, int],
+    orig_shape: tuple[int, int],
+    cfg: dict,
+) -> np.ndarray:
+    """Decode YOLO26n ONNX output → person detections [M, 6].
+
+    Supports two common ultralytics ONNX output layouts:
+      • [1, 84, N] — raw anchor predictions (cx, cy, w, h + 80 class scores)
+      • [1, N, 6]  — post-NMS predictions   (x1, y1, x2, y2, conf, cls)
+    """
+    conf_thresh = cfg["conf_threshold"]
+    nms_thresh = cfg["nms_threshold"]
+    orig_h, orig_w = orig_shape
+    pad_x, pad_y = pad
+
+    # Detect layout
+    if output.ndim == 3 and output.shape[1] == 6:
+        # Post-NMS layout [1, N, 6]: filter person class (cls == 0)
+        preds = output[0]  # [N, 6]
+        person_mask = (preds[:, 5] == 0) & (preds[:, 4] >= conf_thresh)
+        preds = preds[person_mask]
+        if len(preds) == 0:
+            return np.empty((0, 6), dtype=np.float32)
+        x1 = np.clip((preds[:, 0] - pad_x) / r, 0, orig_w)
+        y1 = np.clip((preds[:, 1] - pad_y) / r, 0, orig_h)
+        x2 = np.clip((preds[:, 2] - pad_x) / r, 0, orig_w)
+        y2 = np.clip((preds[:, 3] - pad_y) / r, 0, orig_h)
+        return np.stack([x1, y1, x2, y2, preds[:, 4], preds[:, 5]], axis=1).astype(np.float32)
+
+    # Raw layout [1, 84, N]
+    preds = output[0].T  # [N, 84]
+    person_conf = preds[:, 4]  # class index 0 score (cx,cy,w,h at 0:4)
+    mask = person_conf >= conf_thresh
+    if not mask.any():
+        return np.empty((0, 6), dtype=np.float32)
+
+    preds = preds[mask]
+    scores = person_conf[mask]
+    cx, cy, bw, bh = preds[:, 0], preds[:, 1], preds[:, 2], preds[:, 3]
+    x1 = np.clip((cx - bw / 2 - pad_x) / r, 0, orig_w)
+    y1 = np.clip((cy - bh / 2 - pad_y) / r, 0, orig_h)
+    x2 = np.clip((cx + bw / 2 - pad_x) / r, 0, orig_w)
+    y2 = np.clip((cy + bh / 2 - pad_y) / r, 0, orig_h)
+
+    boxes_xywh = np.stack([x1, y1, x2 - x1, y2 - y1], axis=1).tolist()
+    indices = cv2.dnn.NMSBoxes(boxes_xywh, scores.tolist(), conf_thresh, nms_thresh)
+    if len(indices) == 0:
+        return np.empty((0, 6), dtype=np.float32)
+
+    idx = indices.flatten()
+    return np.stack(
+        [x1[idx], y1[idx], x2[idx], y2[idx], scores[idx], np.zeros(len(idx), dtype=np.float32)],
+        axis=1,
+    ).astype(np.float32)
+
+
+def _build_segments(
+    climbing_times: dict[int, list[float]],
+    duration_sec: float,
+    cfg: dict,
+) -> list[tuple[int, float, float]]:
+    """Merge per-track climbing timestamps into (track_id, start, end) segments."""
+    gap = cfg["gap_tolerance_sec"]
+    pad = cfg["padding_sec"]
+    min_dur = cfg["min_clip_sec"]
+    max_dur = cfg["max_clip_sec"]
+
+    raw_segments: list[tuple[int, float, float]] = []
+    for tid, times in climbing_times.items():
+        if not times:
+            continue
+        times.sort()
+        seg_start = seg_end = times[0]
+        for t in times[1:]:
+            if t - seg_end <= gap:
+                seg_end = t
+            else:
+                raw_segments.append((tid, seg_start, seg_end))
+                seg_start = seg_end = t
+        raw_segments.append((tid, seg_start, seg_end))
+
+    valid: list[tuple[int, float, float]] = []
+    for tid, start, end in raw_segments:
+        start = max(0.0, start - pad)
+        end = min(duration_sec, end + pad)
+        dur = end - start
+        if min_dur <= dur <= max_dur:
+            valid.append((tid, start, end))
+        else:
+            logger.debug(
+                "Clipper: track %d segment %.1f–%.1fs (%.1fs) filtered", tid, start, end, dur
+            )
+    return valid
