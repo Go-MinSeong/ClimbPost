@@ -20,7 +20,8 @@ _DEFAULTS = {
     "sample_fps": 10,            # inference FPS (10 or 15 recommended)
     "climb_threshold": 0.65,     # center_y < this → person is climbing
     "gap_tolerance_sec": 3.0,    # non-climbing gap allowed within a segment
-    "padding_sec": 2.0,          # seconds added before/after segment
+    "padding_before_sec": 5.0,   # seconds prepended before detected segment start
+    "padding_after_sec": 2.0,    # seconds appended after detected segment end
     "min_clip_sec": 10.0,        # discard clips shorter than this
     "max_clip_sec": 180.0,       # discard clips longer than this
     "conf_threshold": 0.3,       # minimum detection confidence
@@ -39,8 +40,15 @@ class ClipperStage(BaseStage):
 
     def __init__(self, config: dict) -> None:
         super().__init__(config)
-        providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
-        self._session = ort.InferenceSession(_MODEL_PATH, providers=providers)
+        so = ort.SessionOptions()
+        so.log_severity_level = 3  # suppress INFO/WARNING from ort itself
+        providers = [
+            ("CUDAExecutionProvider", {"device_id": 0}),
+            "CPUExecutionProvider",
+        ]
+        self._session = ort.InferenceSession(_MODEL_PATH, sess_options=so, providers=providers)
+        active = self._session.get_providers()[0]
+        logger.info("ClipperStage: ONNX using %s", active)
         self._input_name = self._session.get_inputs()[0].name
         inp_shape = self._session.get_inputs()[0].shape
         self._infer_h = inp_shape[2] if isinstance(inp_shape[2], int) else _INFER_SIZE
@@ -251,7 +259,8 @@ def _build_segments(
 ) -> list[tuple[int, float, float]]:
     """Merge per-track climbing timestamps into (track_id, start, end) segments."""
     gap = cfg["gap_tolerance_sec"]
-    pad = cfg["padding_sec"]
+    pad_before = cfg["padding_before_sec"]
+    pad_after = cfg["padding_after_sec"]
     min_dur = cfg["min_clip_sec"]
     max_dur = cfg["max_clip_sec"]
 
@@ -271,8 +280,8 @@ def _build_segments(
 
     valid: list[tuple[int, float, float]] = []
     for tid, start, end in raw_segments:
-        start = max(0.0, start - pad)
-        end = min(duration_sec, end + pad)
+        start = max(0.0, start - pad_before)
+        end = min(duration_sec, end + pad_after)
         dur = end - start
         if min_dur <= dur <= max_dur:
             valid.append((tid, start, end))
