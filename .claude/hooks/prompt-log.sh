@@ -1,25 +1,21 @@
 #!/bin/bash
 # 유저 프롬프트 제출 시: 카운트 증가 + 프롬프트 내용 임시 저장
 
+HOOKS_DIR="$(dirname "$0")"
 INPUT=$(cat)
 PROMPT=$(echo "$INPUT" | jq -r '.prompt // ""' 2>/dev/null || echo "")
-CWD=$(echo "$INPUT" | jq -r '.cwd // "."' 2>/dev/null || echo ".")
-SESSION_FILE="$CWD/.claude/hooks/.current_session"
-PROMPT_LOG="$CWD/.claude/hooks/.prompts_buffer"
+SESSION_FILE="$HOOKS_DIR/.current_session"
+PROMPT_LOG="$HOOKS_DIR/.prompts_buffer"
 
 # 시스템 메시지/빈 프롬프트 건너뜀
 if [ -z "$PROMPT" ]; then exit 0; fi
 if echo "$PROMPT" | grep -q '<task-notification>\|<system-reminder>\|<command-name>'; then exit 0; fi
 
-# 프롬프트 카운트 증가 (macOS/Linux 호환)
+# 프롬프트 카운트 증가
 if [ -f "$SESSION_FILE" ]; then
   COUNT=$(grep "PROMPT_COUNT=" "$SESSION_FILE" | cut -d= -f2)
   NEW_COUNT=$((COUNT + 1))
-  if [ "$(uname)" = "Darwin" ]; then
-    sed -i '' "s/PROMPT_COUNT=.*/PROMPT_COUNT=$NEW_COUNT/" "$SESSION_FILE"
-  else
-    sed -i "s/PROMPT_COUNT=.*/PROMPT_COUNT=$NEW_COUNT/" "$SESSION_FILE"
-  fi
+  sed -i "s/PROMPT_COUNT=.*/PROMPT_COUNT=$NEW_COUNT/" "$SESSION_FILE"
 fi
 
 # 프롬프트 내용을 버퍼에 저장 (나중에 커밋 시 로그 파일에 기록)
