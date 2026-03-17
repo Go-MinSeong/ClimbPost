@@ -203,8 +203,8 @@ def _postprocess(
     orig_h, orig_w = orig_shape
     pad_x, pad_y = pad
 
-    # Detect layout
-    if output.ndim == 3 and output.shape[1] == 6:
+    # Detect layout: [1, N, 6] post-NMS  vs  [1, 84, N] raw anchors
+    if output.ndim == 3 and output.shape[2] == 6:
         # Post-NMS layout [1, N, 6]: filter person class (cls == 0)
         preds = output[0]  # [N, 6]
         person_mask = (preds[:, 5] == 0) & (preds[:, 4] >= conf_thresh)
