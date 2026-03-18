@@ -98,6 +98,7 @@ class IdentifierStage(BaseStage):
             )
 
         self._assign_is_me(context, features, cfg)
+        self._annotate_thumbnails(context)
         return context
 
     # ------------------------------------------------------------------
@@ -221,6 +222,43 @@ class IdentifierStage(BaseStage):
         for i, clip in enumerate(context.clips):
             clip.is_me = i in me_set
             logger.info("Identifier: clip %s → is_me=%s", clip.clip_id, clip.is_me)
+
+    # ------------------------------------------------------------------
+    # Thumbnail annotation — draw is_me border after clustering
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _annotate_thumbnails(context: PipelineContext) -> None:
+        """Draw a coloured border on each clip thumbnail based on is_me result.
+
+        Green border  → is_me=True  (나)
+        Gray  border  → is_me=False (타인)
+        """
+        for clip in context.clips:
+            if not clip.thumbnail_path or not os.path.exists(clip.thumbnail_path):
+                continue
+            img = cv2.imread(clip.thumbnail_path)
+            if img is None:
+                continue
+            color = (74, 175, 74) if clip.is_me else (100, 100, 100)  # BGR
+            thickness = 6 if clip.is_me else 3
+            h, w = img.shape[:2]
+            cv2.rectangle(img, (0, 0), (w - 1, h - 1), color, thickness)
+
+            # Label text: source video + time range
+            src = clip.raw_video_id.replace("rv-", "")[:12]
+            label = f"{src}  {clip.start_time:.0f}-{clip.end_time:.0f}s"
+            cv2.rectangle(img, (0, h - 22), (w, h), (0, 0, 0), -1)
+            cv2.putText(img, label, (4, h - 6),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.38, (220, 220, 220), 1, cv2.LINE_AA)
+
+            me_label = "ME" if clip.is_me else "other"
+            me_color = (74, 175, 74) if clip.is_me else (100, 100, 100)
+            cv2.rectangle(img, (0, 0), (50, 20), (0, 0, 0), -1)
+            cv2.putText(img, me_label, (4, 15),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, me_color, 1, cv2.LINE_AA)
+
+            cv2.imwrite(clip.thumbnail_path, img)
 
     # ------------------------------------------------------------------
     # Fallback thumbnail (middle frame, no person crop)
