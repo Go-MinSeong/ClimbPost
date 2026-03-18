@@ -50,6 +50,8 @@ analyzer/models/*.pth
 analyzer/models/*.onnx
 analyzer/models/*.bin
 !analyzer/models/.gitkeep
+*.pt
+*.pth
 
 # Environment
 .env
@@ -69,6 +71,7 @@ logs/
 # Videos (test data)
 *.mp4
 *.mov
+*.MOV
 *.avi
 
 # Database

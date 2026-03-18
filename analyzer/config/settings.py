@@ -2,11 +2,11 @@ STORAGE_ROOT = "./data/storage"
 DB_PATH = "./server/climbpost.db"
 
 PIPELINE_STAGES = [
-    "analyzer.clipper.clipper.ClipperStage",
-    "analyzer.classifier.classifier.ClassifierStage",
-    "analyzer.detector.detector.DetectorStage",
-    "analyzer.identifier.identifier.IdentifierStage",
-    "analyzer.editor.editor.EditorStage",
+    "analyzer.clipper.clipper.ClipperStage",       # Stage 1: clip extraction
+    "analyzer.identifier.identifier.IdentifierStage",  # Stage 2: who is 'me' + thumbnails
+    "analyzer.classifier.classifier.ClassifierStage",  # Stage 3: success/fail (me only)
+    "analyzer.detector.detector.DetectorStage",    # Stage 4: tape colour (me only)
+    "analyzer.editor.editor.EditorStage",          # Stage 5: HDR→SDR (me only)
 ]
 
 # Clipper settings
