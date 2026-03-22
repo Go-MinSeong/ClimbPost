@@ -27,10 +27,10 @@ struct ContentView: View {
         .animation(.easeInOut(duration: 0.4), value: authState.isLoggedIn)
         .animation(.easeInOut(duration: 0.4), value: authState.isLoading)
         .task {
-            #if targetEnvironment(simulator)
-            // Auto-login for simulator demo
+            #if DEBUG
+            // Auto-login for development (simulator + real device)
             authState.handleLoginSuccess(AuthResponse(
-                accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZXYtdXNlci0wMDEiLCJleHAiOjE3NzQwOTA1NjgsImlhdCI6MTc3MzQ4NTc2OH0.LcNp93dekmQM3N4S0JfTFgk52egdRjo5vyqMIrz86ik",
+                accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZXYtdXNlci0wMDEiLCJleHAiOjE3NzQ3Nzg0MDEsImlhdCI6MTc3NDE3MzYwMX0.diPt63VzhmNn42xwyqunTZnw6tOe2XolKxBRRqDHnDI",
                 tokenType: "bearer",
                 userId: "dev-user-001"
             ))

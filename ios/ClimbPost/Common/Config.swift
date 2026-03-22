@@ -12,7 +12,7 @@ enum Config {
     #if targetEnvironment(simulator)
     static let baseURLString = "http://localhost:8000"
     #elseif DEBUG
-    static let baseURLString = "http://172.30.1.82:8000"
+    static let baseURLString = "http://100.71.197.112:8000"  // Tailscale VPN → GPU server
     #else
     static let baseURLString = "https://your-server.com"
     #endif
