@@ -55,6 +55,17 @@
 			</dict>
 		</dict>
 	</dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>climbpost</string>
+			</array>
+			<key>CFBundleURLName</key>
+			<string>com.rmsdlf2580.climbpost</string>
+		</dict>
+	</array>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>ClimbPost needs access to your photo library to find climbing videos</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

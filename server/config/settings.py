@@ -42,6 +42,11 @@ ANALYZER_URL = os.getenv("ANALYZER_URL", "http://localhost:8001")
 INSTAGRAM_USER_ID = os.getenv("INSTAGRAM_USER_ID", "")
 INSTAGRAM_ACCESS_TOKEN = os.getenv("INSTAGRAM_ACCESS_TOKEN", "")
 
+# Facebook OAuth (for in-app Instagram login)
+FB_APP_ID = os.getenv("FB_APP_ID", "")
+FB_APP_SECRET = os.getenv("FB_APP_SECRET", "")
+FB_REDIRECT_URI = os.getenv("FB_REDIRECT_URI", "climbpost://auth/callback")
+
 # Public URL for video hosting (Cloudflare Tunnel / ngrok)
 # Instagram API needs publicly accessible HTTPS URLs for videos
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "")

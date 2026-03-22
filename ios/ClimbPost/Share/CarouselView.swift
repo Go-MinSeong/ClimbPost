@@ -18,6 +18,7 @@ struct CarouselView: View {
     @State private var isPublishing = false
     @State private var publishStatus: String?
     @State private var publishSuccess = false
+    @StateObject private var igAuth = InstagramAuthManager.shared
 
     init(sessionId: String, initialClip: Clip? = nil) {
         self.sessionId = sessionId
@@ -77,6 +78,7 @@ struct CarouselView: View {
         }
         .task {
             await viewModel.fetchClips()
+            await igAuth.checkStatus()
             if let clip = initialClip, !selectedClipIds.contains(clip.id) {
                 selectedClipIds.append(clip.id)
             }
@@ -280,6 +282,40 @@ struct CarouselView: View {
 
     private var shareButtons: some View {
         VStack(spacing: 10) {
+            // Instagram 연결 상태
+            if igAuth.isConnected {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(AppColor.success)
+                    Text("@\(igAuth.igUsername ?? "connected")").font(AppFont.caption).foregroundStyle(.white)
+                    Spacer()
+                    Button("연결 해제") {
+                        Task { await igAuth.disconnect() }
+                    }
+                    .font(.system(size: 12)).foregroundStyle(.white.opacity(0.4))
+                }
+                .padding(.horizontal, 4)
+            } else {
+                Button {
+                    igAuth.startLogin()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "link").font(.system(size: 14))
+                        Text(igAuth.isAuthenticating ? "연결 중..." : "Instagram 비즈니스 계정 연결")
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(AppColor.cardBackground)
+                    .foregroundColor(.white.opacity(0.7))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+                .disabled(igAuth.isAuthenticating)
+
+                if let err = igAuth.errorMessage {
+                    Text(err).font(.system(size: 11)).foregroundStyle(AppColor.fail).padding(.horizontal, 4)
+                }
+            }
+
             // 직접 게시 (Instagram Graph API)
             Button {
                 publishDirectly()
@@ -312,7 +348,7 @@ struct CarouselView: View {
                 .foregroundColor(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 14))
             }
-            .disabled(selectedClips.isEmpty || isPublishing || isSharing)
+            .disabled(selectedClips.isEmpty || isPublishing || isSharing || !igAuth.isConnected)
 
             // 카메라롤 저장 (기존 방식)
             Button {

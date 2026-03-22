@@ -114,6 +114,22 @@ class DeviceToken(Base):
     user = relationship("User", back_populates="device_tokens")
 
 
+class InstagramAccount(Base):
+    __tablename__ = "instagram_accounts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, unique=True)
+    ig_user_id = Column(String, nullable=False)  # Instagram Business Account ID
+    ig_username = Column(String, nullable=True)
+    ig_profile_picture = Column(String, nullable=True)
+    page_id = Column(String, nullable=False)  # Facebook Page ID
+    page_access_token = Column(String, nullable=False)  # Never-expiring page token
+    long_lived_user_token = Column(String, nullable=True)  # 60-day user token
+    user_token_expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+
+
 class InstagramPublishJob(Base):
     __tablename__ = "instagram_publish_jobs"
 

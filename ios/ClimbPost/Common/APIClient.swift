@@ -15,6 +15,10 @@ protocol APIClientProtocol {
     func registerPushToken(_ token: String) async throws
     func publishToInstagram(clipIds: [String], caption: String?) async throws -> InstagramPublishResponse
     func getInstagramPublishStatus(jobId: String) async throws -> InstagramPublishStatus
+    func getInstagramConnectInfo() async throws -> InstagramConnectInfo
+    func exchangeInstagramCode(code: String) async throws -> InstagramAccountStatus
+    func getInstagramStatus() async throws -> InstagramAccountStatus
+    func disconnectInstagram() async throws
 }
 
 // MARK: - Errors
@@ -152,6 +156,29 @@ final class APIClient: APIClientProtocol {
 
     func getInstagramPublishStatus(jobId: String) async throws -> InstagramPublishStatus {
         return try await get("/api/instagram/publish/\(jobId)", authenticated: true)
+    }
+
+    func getInstagramConnectInfo() async throws -> InstagramConnectInfo {
+        return try await get("/auth/instagram/connect-info", authenticated: true)
+    }
+
+    func exchangeInstagramCode(code: String) async throws -> InstagramAccountStatus {
+        let body = InstagramCodeExchange(code: code)
+        return try await post("/auth/instagram/exchange", body: body, authenticated: true)
+    }
+
+    func getInstagramStatus() async throws -> InstagramAccountStatus {
+        return try await get("/auth/instagram/status", authenticated: true)
+    }
+
+    func disconnectInstagram() async throws {
+        // DELETE request
+        let url = baseURL.appendingPathComponent("auth/instagram/disconnect")
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        try addAuthHeader(to: &request)
+        let (_, response) = try await session.data(for: request)
+        try validateResponse(response)
     }
 
     // MARK: - Helpers

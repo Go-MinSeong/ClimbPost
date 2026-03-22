@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from server.auth.service import get_current_user
 from server.config.settings import PUBLIC_BASE_URL
 from server.db.database import get_db
-from server.db.models import User, Clip, RawVideo, UploadSession, InstagramPublishJob
+from server.db.models import User, Clip, RawVideo, UploadSession, InstagramPublishJob, InstagramAccount
 from server.services.instagram import InstagramService
 
 logger = logging.getLogger(__name__)
@@ -57,6 +57,11 @@ async def publish_to_instagram(
         raise HTTPException(status_code=400, detail="Maximum 10 clips per carousel")
     if not PUBLIC_BASE_URL:
         raise HTTPException(status_code=503, detail="PUBLIC_BASE_URL not configured — cannot serve videos to Instagram")
+
+    # Check Instagram account is connected
+    ig_account = db.query(InstagramAccount).filter(InstagramAccount.user_id == user.id).first()
+    if not ig_account:
+        raise HTTPException(status_code=400, detail="Instagram 계정이 연결되지 않았습니다. 먼저 Instagram을 연결하세요.")
 
     # Verify all clips belong to this user
     clips = (
@@ -157,11 +162,22 @@ async def _run_publish(job_id: str) -> None:
 
         logger.info("Publishing %d videos to Instagram for job %s", len(video_urls), job_id)
 
+        # Get user's Instagram credentials from DB
+        ig_account = db.query(InstagramAccount).filter(InstagramAccount.user_id == job.user_id).first()
+        if not ig_account:
+            job.status = "failed"
+            job.error_message = "Instagram 계정이 연결되지 않았습니다"
+            db.commit()
+            return
+
         job.status = "processing"
         db.commit()
 
-        # Call Instagram API
-        service = InstagramService()
+        # Call Instagram API with user's own credentials
+        service = InstagramService(
+            ig_user_id=ig_account.ig_user_id,
+            access_token=ig_account.page_access_token,
+        )
         result = await service.publish_carousel(
             video_urls=video_urls,
             caption=job.caption,

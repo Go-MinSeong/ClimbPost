@@ -112,6 +112,34 @@ struct ClipFilter {
     var isMe: Bool?
 }
 
+// MARK: - Instagram Auth
+
+struct InstagramConnectInfo: Codable {
+    let fbAppId: String
+    let redirectUri: String
+    let scopes: String
+    enum CodingKeys: String, CodingKey {
+        case fbAppId = "fb_app_id"
+        case redirectUri = "redirect_uri"
+        case scopes
+    }
+}
+
+struct InstagramCodeExchange: Codable {
+    let code: String
+}
+
+struct InstagramAccountStatus: Codable {
+    let igUsername: String?
+    let igProfilePicture: String?
+    let connected: Bool
+    enum CodingKeys: String, CodingKey {
+        case igUsername = "ig_username"
+        case igProfilePicture = "ig_profile_picture"
+        case connected
+    }
+}
+
 // MARK: - Instagram Publish
 
 struct InstagramPublishRequest: Codable {
