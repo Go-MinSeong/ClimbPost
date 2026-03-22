@@ -13,6 +13,8 @@ protocol APIClientProtocol {
     func getAllClips() async throws -> [Clip]
     func getClips(sessionId: String, filters: ClipFilter?) async throws -> [Clip]
     func registerPushToken(_ token: String) async throws
+    func publishToInstagram(clipIds: [String], caption: String?) async throws -> InstagramPublishResponse
+    func getInstagramPublishStatus(jobId: String) async throws -> InstagramPublishStatus
 }
 
 // MARK: - Errors
@@ -139,6 +141,17 @@ final class APIClient: APIClientProtocol {
     func registerPushToken(_ token: String) async throws {
         let body = RegisterPushRequest(deviceToken: token)
         let _: [String: Bool] = try await post("/push/register", body: body, authenticated: true)
+    }
+
+    // MARK: - Instagram
+
+    func publishToInstagram(clipIds: [String], caption: String?) async throws -> InstagramPublishResponse {
+        let body = InstagramPublishRequest(clipIds: clipIds, caption: caption)
+        return try await post("/api/instagram/publish", body: body, authenticated: true)
+    }
+
+    func getInstagramPublishStatus(jobId: String) async throws -> InstagramPublishStatus {
+        return try await get("/api/instagram/publish/\(jobId)", authenticated: true)
     }
 
     // MARK: - Helpers

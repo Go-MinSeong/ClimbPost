@@ -14,6 +14,10 @@ struct CarouselView: View {
     @State private var selectedClipIds: [String] = []
     @State private var isSharing = false
     @State private var shareError: String?
+    @State private var caption: String = ""
+    @State private var isPublishing = false
+    @State private var publishStatus: String?
+    @State private var publishSuccess = false
 
     init(sessionId: String, initialClip: Clip? = nil) {
         self.sessionId = sessionId
@@ -48,11 +52,14 @@ struct CarouselView: View {
                 .background(Color.yellow.opacity(0.1))
             }
 
+            // Caption input
+            captionSection
+
             // Clip selection list
             clipSelectionList
 
-            // Share button
-            shareButton
+            // Share buttons
+            shareButtons
         }
         .background(AppColor.background)
         .navigationTitle("캐러셀 구성")
@@ -251,42 +258,86 @@ struct CarouselView: View {
 
     // MARK: - Share Button
 
-    private var shareButton: some View {
-        Button {
-            shareToInstagram()
-        } label: {
-            HStack(spacing: 10) {
-                if isSharing {
-                    ProgressView()
-                        .tint(.white)
-                } else {
-                    Image(systemName: "camera.fill")
-                        .font(.system(size: 18))
-                }
-                Text(selectedClips.isEmpty ? "클립을 선택하세요" : "인스타그램에 공유")
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .background(
-                selectedClips.isEmpty
-                    ? AnyShapeStyle(Color.gray.opacity(0.3))
-                    : AnyShapeStyle(
-                        LinearGradient(
-                            colors: [
-                                Color(red: 0.51, green: 0.23, blue: 0.73),  // purple
-                                Color(red: 0.99, green: 0.36, blue: 0.22),  // orange
-                                Color(red: 0.96, green: 0.27, blue: 0.53)   // pink
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-            )
-            .foregroundColor(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+    // MARK: - Caption
+
+    private var captionSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("캡션")
+                .font(AppFont.caption)
+                .foregroundStyle(.white.opacity(0.5))
+            TextField("오늘의 클라이밍 🧗", text: $caption, axis: .vertical)
+                .lineLimit(2...4)
+                .padding(12)
+                .background(AppColor.cardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .foregroundStyle(.white)
         }
-        .disabled(selectedClips.isEmpty || isSharing)
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+    }
+
+    // MARK: - Share Buttons
+
+    private var shareButtons: some View {
+        VStack(spacing: 10) {
+            // 직접 게시 (Instagram Graph API)
+            Button {
+                publishDirectly()
+            } label: {
+                HStack(spacing: 10) {
+                    if isPublishing {
+                        ProgressView().tint(.white)
+                    } else {
+                        Image(systemName: "paperplane.fill").font(.system(size: 16))
+                    }
+                    Text(publishStatus ?? (selectedClips.isEmpty ? "클립을 선택하세요" : "인스타그램에 직접 게시"))
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(
+                    selectedClips.isEmpty || isPublishing
+                        ? AnyShapeStyle(Color.gray.opacity(0.3))
+                        : AnyShapeStyle(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.51, green: 0.23, blue: 0.73),
+                                    Color(red: 0.99, green: 0.36, blue: 0.22),
+                                    Color(red: 0.96, green: 0.27, blue: 0.53)
+                                ],
+                                startPoint: .leading, endPoint: .trailing
+                            )
+                        )
+                )
+                .foregroundColor(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+            }
+            .disabled(selectedClips.isEmpty || isPublishing || isSharing)
+
+            // 카메라롤 저장 (기존 방식)
+            Button {
+                shareToInstagram()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "square.and.arrow.down")
+                    Text("카메라롤에 저장")
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .foregroundColor(.white.opacity(0.6))
+            }
+            .disabled(selectedClips.isEmpty || isSharing || isPublishing)
+
+            // 게시 성공 메시지
+            if publishSuccess {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(AppColor.success)
+                    Text("인스타그램에 게시되었습니다!").font(AppFont.caption).foregroundStyle(AppColor.success)
+                }
+                .padding(.vertical, 4)
+            }
+        }
         .padding(.horizontal)
         .padding(.vertical, 12)
     }
@@ -299,6 +350,53 @@ struct CarouselView: View {
                 selectedClipIds.remove(at: index)
             } else {
                 selectedClipIds.append(clip.id)
+            }
+        }
+    }
+
+    private func publishDirectly() {
+        isPublishing = true
+        publishStatus = "게시 요청 중..."
+        publishSuccess = false
+
+        Task {
+            do {
+                let response = try await APIClient.shared.publishToInstagram(
+                    clipIds: selectedClipIds,
+                    caption: caption.isEmpty ? nil : caption
+                )
+                let jobId = response.jobId
+                publishStatus = "Instagram에 업로드 중..."
+
+                // Poll until done
+                for _ in 0..<120 {  // max 10 min
+                    try await Task.sleep(nanoseconds: 5_000_000_000) // 5초
+                    let status = try await APIClient.shared.getInstagramPublishStatus(jobId: jobId)
+
+                    await MainActor.run {
+                        switch status.status {
+                        case "uploading": publishStatus = "영상 업로드 중..."
+                        case "processing": publishStatus = "Instagram 처리 중..."
+                        case "published":
+                            publishStatus = nil
+                            publishSuccess = true
+                            isPublishing = false
+                        case "failed":
+                            publishStatus = nil
+                            shareError = status.errorMessage ?? "게시 실패"
+                            isPublishing = false
+                        default: publishStatus = "처리 중..."
+                        }
+                    }
+
+                    if status.status == "published" || status.status == "failed" { break }
+                }
+            } catch {
+                await MainActor.run {
+                    shareError = error.localizedDescription
+                    publishStatus = nil
+                    isPublishing = false
+                }
             }
         }
     }

@@ -112,6 +112,39 @@ struct ClipFilter {
     var isMe: Bool?
 }
 
+// MARK: - Instagram Publish
+
+struct InstagramPublishRequest: Codable {
+    let clipIds: [String]
+    let caption: String?
+    enum CodingKeys: String, CodingKey {
+        case clipIds = "clip_ids"
+        case caption
+    }
+}
+
+struct InstagramPublishResponse: Codable {
+    let jobId: String
+    let status: String
+    enum CodingKeys: String, CodingKey {
+        case jobId = "job_id"
+        case status
+    }
+}
+
+struct InstagramPublishStatus: Codable {
+    let jobId: String
+    let status: String
+    let errorMessage: String?
+    let igMediaId: String?
+    enum CodingKeys: String, CodingKey {
+        case jobId = "job_id"
+        case status
+        case errorMessage = "error_message"
+        case igMediaId = "ig_media_id"
+    }
+}
+
 // MARK: - Push
 
 struct RegisterPushRequest: Codable {

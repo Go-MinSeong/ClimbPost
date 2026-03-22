@@ -14,6 +14,7 @@ from server.api.upload import router as upload_router
 from server.api.analysis import router as analysis_router
 from server.api.clips import router as clips_router
 from server.push.service import router as push_router
+from server.api.instagram import router as instagram_router
 from server.queue.worker import poll_jobs
 
 
@@ -49,6 +50,7 @@ app.include_router(upload_router)
 app.include_router(analysis_router)
 app.include_router(clips_router)
 app.include_router(push_router)
+app.include_router(instagram_router)
 
 
 # Static file serving for thumbnails, clips, edited videos

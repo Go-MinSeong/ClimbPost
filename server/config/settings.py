@@ -35,5 +35,16 @@ THUMBNAILS_DIR = f"{STORAGE_ROOT}/thumbnails/{{session_id}}/"
 # Mock analysis mode (skip GPU pipeline, generate fake results)
 MOCK_ANALYSIS = os.getenv("MOCK_ANALYSIS", "false").lower() in ("true", "1", "yes")
 
+# Analyzer microservice URL
+ANALYZER_URL = os.getenv("ANALYZER_URL", "http://localhost:8001")
+
+# Instagram Graph API
+INSTAGRAM_USER_ID = os.getenv("INSTAGRAM_USER_ID", "")
+INSTAGRAM_ACCESS_TOKEN = os.getenv("INSTAGRAM_ACCESS_TOKEN", "")
+
+# Public URL for video hosting (Cloudflare Tunnel / ngrok)
+# Instagram API needs publicly accessible HTTPS URLs for videos
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "")
+
 # CORS
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*").split(",")

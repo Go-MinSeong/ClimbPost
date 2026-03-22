@@ -112,3 +112,19 @@ class DeviceToken(Base):
     created_at = Column(DateTime, default=_utcnow)
 
     user = relationship("User", back_populates="device_tokens")
+
+
+class InstagramPublishJob(Base):
+    __tablename__ = "instagram_publish_jobs"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    clip_ids = Column(JSON, nullable=False)
+    caption = Column(String, nullable=True)
+    status = Column(String, default="pending")  # pending/uploading/processing/published/failed
+    error_message = Column(String, nullable=True)
+    container_ids = Column(JSON, nullable=True)
+    carousel_container_id = Column(String, nullable=True)
+    ig_media_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
