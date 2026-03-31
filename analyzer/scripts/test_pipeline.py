@@ -4,7 +4,9 @@ Stage 2 (Identifier)가 모든 영상의 클립을 한꺼번에 보고 '나'를 
 올바른 클러스터링이 가능. 영상별 별도 Context는 성능 저하의 원인임.
 
 컨테이너 안에서 실행:
-    python -m analyzer.scripts.test_pipeline
+    python -m analyzer.scripts.test_pipeline              # 전체 영상 자동 탐색
+    python -m analyzer.scripts.test_pipeline --limit 5   # 처음 5개만
+    python -m analyzer.scripts.test_pipeline /data/test-data/data_01.MOV ...  # 지정 경로
 
 결과:
     /data/storage/test-pipeline-<ts>/stage{1,2,3,4}_result.json
@@ -12,6 +14,8 @@ Stage 2 (Identifier)가 모든 영상의 클립을 한꺼번에 보고 '나'를 
 """
 from __future__ import annotations
 
+import argparse
+import glob
 import json
 import logging
 import os
@@ -32,12 +36,27 @@ logger = logging.getLogger("test_pipeline")
 
 STORAGE_ROOT = os.environ.get("STORAGE_ROOT", "/data/storage")
 SESSION_ID = f"test-pipeline-{int(time.time())}"
+TEST_DATA_DIR = os.environ.get("TEST_DATA_DIR", "/data/test-data")
+_VIDEO_EXTS = {".mov", ".mp4", ".MOV", ".MP4", ".avi", ".AVI"}
 
-TEST_VIDEOS = [
-    "/data/test-data/data-1.mov",
-    "/data/test-data/data-2.MOV",
-    "/data/test-data/data-3.MOV",
-]
+
+def discover_videos(limit: int | None = None) -> list[str]:
+    """Sort-order glob of all video files in TEST_DATA_DIR."""
+    paths: list[str] = []
+    for ext in sorted(_VIDEO_EXTS):
+        paths.extend(glob.glob(os.path.join(TEST_DATA_DIR, f"*{ext}")))
+    paths = sorted(set(paths))
+    if limit:
+        paths = paths[:limit]
+    return paths
+
+
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="ClimbPost pipeline test")
+    p.add_argument("videos", nargs="*", help="영상 경로 (생략 시 TEST_DATA_DIR 자동 탐색)")
+    p.add_argument("--limit", "-n", type=int, default=None,
+                   help="자동 탐색 시 사용할 최대 영상 수")
+    return p.parse_args()
 
 COLOR_MAP = {
     "mapping": {
@@ -192,7 +211,7 @@ def generate_html_report(
 <h2>{SESSION_ID}</h2>
 
 <div class="summary">
-  <div class="stat"><div class="n">{len(TEST_VIDEOS)}</div><div class="lbl">입력 영상</div></div>
+  <div class="stat"><div class="n">{len(context.raw_videos)}</div><div class="lbl">입력 영상</div></div>
   <div class="stat"><div class="n">{len(clips)}</div><div class="lbl">전체 클립</div></div>
   <div class="stat"><div class="n">{len(me_clips)}</div><div class="lbl">나의 클립</div></div>
   <div class="stat"><div class="n">{sum(1 for c in me_clips if c.result=='success')}</div><div class="lbl">성공</div></div>
@@ -217,8 +236,15 @@ def generate_html_report(
 
 
 def main() -> None:
+    args = parse_args()
+    test_videos = args.videos if args.videos else discover_videos(args.limit)
+
+    if not test_videos:
+        logger.error("No videos found in %s — abort.", TEST_DATA_DIR)
+        return
+
     print("\n" + "=" * 70)
-    print(f"  ClimbPost Pipeline Test  —  Stages 1–4  —  {len(TEST_VIDEOS)} videos")
+    print(f"  ClimbPost Pipeline Test  —  Stages 1–4  —  {len(test_videos)} videos")
     print("  ※ 모든 영상을 단일 Context로 통합 처리 (Stage2 전체 집계)")
     print("=" * 70)
 
@@ -228,7 +254,7 @@ def main() -> None:
 
     # --- Build single unified context with ALL videos ---
     raw_videos = []
-    for vp in TEST_VIDEOS:
+    for vp in test_videos:
         if not os.path.exists(vp):
             logger.warning("Video not found, skipping: %s", vp)
             continue
