@@ -3,6 +3,11 @@
 Uses YOLO26n-pose ONNX to extract body keypoints from the last N seconds
 of each clip, then decides success/fail based on vertical position.
 Clips with is_me=False are skipped.
+
+Performance notes
+-----------------
+- cap.grab() for non-sample frames: avoids full BGR decode
+- Batch pose inference: collect all sample frames, single session.run call
 """
 from __future__ import annotations
 
@@ -17,7 +22,7 @@ from analyzer.pipeline.base_stage import BaseStage
 from analyzer.pipeline.context import PipelineContext
 from analyzer.pipeline.onnx_infer import (
     load_session,
-    preprocess,
+    preprocess_batch,
     postprocess_pose,
     get_center_y,
 )
@@ -66,7 +71,7 @@ class ClassifierStage(BaseStage):
         return context
 
     # ------------------------------------------------------------------
-    # Core classification
+    # Batch pose inference over tail section
     # ------------------------------------------------------------------
 
     def _classify(self, clip_path: str, cfg: dict) -> str:
@@ -78,28 +83,51 @@ class ClassifierStage(BaseStage):
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         sample_interval = max(1, int(fps / cfg["sample_fps"]))
 
-        # Seek to tail section
-        tail_start_frame = max(0, total_frames - int(fps * cfg["tail_seconds"]))
-        cap.set(cv2.CAP_PROP_POS_FRAMES, tail_start_frame)
+        tail_start = max(0, total_frames - int(fps * cfg["tail_seconds"]))
+        cap.set(cv2.CAP_PROP_POS_FRAMES, tail_start)
 
-        y_positions: list[float] = []
-        frame_idx = 0
-        while True:
+        # Collect all sample frames from the tail section
+        frames: list[np.ndarray] = []
+        shapes: list[tuple[int, int]] = []
+        frame_pos = tail_start
+
+        while frame_pos < total_frames:
             ret, frame = cap.read()
             if not ret:
                 break
-            if frame_idx % sample_interval == 0:
-                fh, fw = frame.shape[:2]
-                blob, r, pad = preprocess(frame, self._infer_h, self._infer_w)
-                raw = self._session.run(None, {self._session.get_inputs()[0].name: blob})[0]
-                persons = postprocess_pose(raw, r, pad, (fh, fw), cfg["conf_threshold"])
-                if len(persons) > 0:
-                    cy = get_center_y(persons[0], fh)
-                    if cy is not None:
-                        y_positions.append(cy)
-            frame_idx += 1
+            frames.append(frame)
+            shapes.append(frame.shape[:2])
+
+            next_pos = frame_pos + sample_interval
+            if next_pos >= total_frames:
+                break
+
+            # Skip non-sample frames without decoding
+            for _ in range(next_pos - (frame_pos + 1)):
+                if not cap.grab():
+                    break
+
+            frame_pos = next_pos
 
         cap.release()
+
+        if not frames:
+            logger.warning("Classifier: no frames collected from %s", clip_path)
+            return "fail"
+
+        # Single batch pose inference
+        batch_blob, r_list, pad_list = preprocess_batch(frames, self._infer_h, self._infer_w)
+        raw_batch = self._session.run(
+            None, {self._session.get_inputs()[0].name: batch_blob}
+        )[0]  # [N, 300, 57]
+
+        y_positions: list[float] = []
+        for i, (shape, r, pad) in enumerate(zip(shapes, r_list, pad_list)):
+            persons = postprocess_pose(raw_batch[i:i+1], r, pad, shape, cfg["conf_threshold"])
+            if len(persons) > 0:
+                cy = get_center_y(persons[0], shape[0])
+                if cy is not None:
+                    y_positions.append(cy)
 
         if not y_positions:
             logger.warning("Classifier: no pose detected in %s", clip_path)
@@ -116,18 +144,14 @@ def _decide(y_positions: list[float], cfg: dict) -> str:
     last_y = y_positions[-1]
     first_y = y_positions[0]
 
-    # Sudden fall → fail
     for i in range(1, len(y_positions)):
         if y_positions[i] - y_positions[i - 1] > fall_thresh:
             return "fail"
 
-    # Top reached
     if min_y < success_y:
         return "success"
-    # Ended higher than started (sustained upward progress)
     if last_y < first_y - 0.05:
         return "success"
-    # Final position in upper half
     if last_y < 0.50:
         return "success"
 

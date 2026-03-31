@@ -3,14 +3,12 @@
 Strategy
 --------
 1. Split each clip into 3 temporal segments (0-33%, 33-66%, 66-100%).
-2. In each segment find the best frame:
-   - YOLO26n person detection; filter center_y < climb_threshold.
-   - Score = confidence × bbox_area_fraction → argmax.
-3. Crop the person bbox from each best frame (5% padding).
-4. Save 3 thumbnails per clip: {clip_id}_thumb_0/1/2.jpg
-   Primary thumbnail used in reports: _thumb_1 (middle segment).
-5. Run OSNet re-ID on each crop → embedding vector.
-6. L2-normalise and average the (up to 3) embeddings → representative.
+2. Open VideoCapture ONCE per clip and seek between segments.
+3. In each segment find the best frame (argmax conf×area, center_y < threshold)
+   using cap.grab() to skip non-sample frames without decoding.
+4. Crop the person bbox from each best frame, save 3 thumbnails.
+5. Run OSNet re-ID on all 3 crops in a SINGLE batch call → [3, D] embeddings.
+6. L2-normalise and average → single representative per clip.
 7. Cluster representatives with DBSCAN (cosine distance).
 8. Largest cluster = 'me'; those clips get is_me=True.
 9. Annotate primary thumbnails with ME/other border.
@@ -30,6 +28,7 @@ from analyzer.pipeline.context import PipelineContext
 from analyzer.pipeline.onnx_infer import (
     load_session,
     preprocess,
+    preprocess_batch,
     preprocess_reid,
     postprocess_det,
 )
@@ -50,7 +49,7 @@ _DEFAULTS = {
     "climb_threshold": 0.65,   # center_y < this → person in climbing zone
     "conf_threshold": 0.3,     # minimum detection confidence
     "min_area_frac": 0.005,    # bbox must be ≥ 0.5% of frame area
-    "dbscan_eps": 0.35,        # cosine distance threshold (same person ~ < 0.3)
+    "dbscan_eps": 0.35,        # cosine distance threshold
     "dbscan_min_samples": 1,
     "thumbnail_pad": 0.05,     # relative bbox expansion for crop
     "n_segments": 3,           # temporal segments per clip
@@ -58,7 +57,7 @@ _DEFAULTS = {
 
 
 class IdentifierStage(BaseStage):
-    """Stage 2 — multi-frame appearance embedding + DBSCAN is_me identification."""
+    """Stage 2 — multi-frame OSNet re-ID + DBSCAN is_me identification."""
 
     def __init__(self, config: dict) -> None:
         super().__init__(config)
@@ -108,7 +107,7 @@ class IdentifierStage(BaseStage):
         return context
 
     # ------------------------------------------------------------------
-    # Per-clip: 3-segment frame selection + OSNet embedding
+    # Per-clip: single VideoCapture, 3-segment scan, batch OSNet
     # ------------------------------------------------------------------
 
     def _process_clip(
@@ -118,7 +117,7 @@ class IdentifierStage(BaseStage):
         clip_id: str,
         cfg: dict,
     ) -> tuple[np.ndarray | None, str | None]:
-        """Sample 3 segments, extract embeddings, return (avg_embedding, primary_thumb_path)."""
+        """Open clip once, scan 3 segments, batch-embed crops, return (avg_emb, primary_thumb)."""
         cap = cv2.VideoCapture(clip_path)
         if not cap.isOpened():
             logger.error("Identifier: cannot open %s", clip_path)
@@ -126,128 +125,64 @@ class IdentifierStage(BaseStage):
 
         fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        cap.release()
 
         if total_frames < 3:
+            cap.release()
             return None, None
 
+        sample_interval = max(1, int(fps / cfg["sample_fps"]))
         n_seg = cfg["n_segments"]
         seg_size = total_frames // n_seg
-        # Segment boundaries: [(start, end), ...]
         segments = [
             (i * seg_size, min((i + 1) * seg_size - 1, total_frames - 1))
             for i in range(n_seg)
         ]
 
-        sample_interval = max(1, int(fps / cfg["sample_fps"]))
-        embeddings: list[np.ndarray] = []
+        crops: list[tuple[int, np.ndarray]] = []   # (seg_idx, crop_bgr)
         thumb_paths: list[str | None] = [None] * n_seg
 
         for seg_idx, (seg_start, seg_end) in enumerate(segments):
-            best = self._best_frame_in_segment(
-                clip_path, seg_start, seg_end, sample_interval, cfg
+            best = _best_frame_in_segment(
+                cap, seg_start, seg_end, sample_interval,
+                self._det_session, self._infer_h, self._infer_w, cfg,
             )
             if best is None:
                 continue
-
             frame, bbox = best
             crop = _crop_person(frame, bbox, cfg["thumbnail_pad"])
             if crop is None or crop.size == 0:
                 continue
-
-            # Save thumbnail
             thumb_path = os.path.join(thumb_dir, f"{clip_id}_thumb_{seg_idx}.jpg")
             cv2.imwrite(thumb_path, crop)
             thumb_paths[seg_idx] = thumb_path
+            crops.append((seg_idx, crop))
 
-            # Re-ID embedding
-            emb = self._embed(crop)
-            if emb is not None:
-                embeddings.append(emb)
+        cap.release()
 
         primary_thumb = thumb_paths[1] or thumb_paths[0] or thumb_paths[2]
 
-        if not embeddings:
-            self._save_middle_frame(clip_path, thumb_dir, clip_id)
-            primary_thumb = os.path.join(thumb_dir, f"{clip_id}_thumb_1.jpg")
-            return None, primary_thumb
+        if not crops:
+            _save_middle_frame(clip_path, thumb_dir, clip_id)
+            return None, os.path.join(thumb_dir, f"{clip_id}_thumb_1.jpg")
 
-        # L2-normalise each embedding, then average
-        stacked = np.array(embeddings, dtype=np.float32)
-        norms = np.linalg.norm(stacked, axis=1, keepdims=True)
+        # --- Batch OSNet: all crops in one session.run ---
+        crop_list = [c for _, c in crops]
+        reid_input = np.concatenate(
+            [preprocess_reid(c) for c in crop_list], axis=0
+        )  # [N, 3, 256, 128]
+        embeddings = self._reid_session.run(
+            None, {self._reid_session.get_inputs()[0].name: reid_input}
+        )[0]  # [N, D]
+
+        norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
         norms[norms == 0] = 1.0
-        stacked = stacked / norms
-        avg_emb = stacked.mean(axis=0)
+        embeddings = embeddings / norms
+        avg_emb = embeddings.mean(axis=0)
         avg_norm = np.linalg.norm(avg_emb)
         if avg_norm > 0:
             avg_emb /= avg_norm
 
-        return avg_emb, primary_thumb
-
-    def _best_frame_in_segment(
-        self,
-        clip_path: str,
-        seg_start: int,
-        seg_end: int,
-        sample_interval: int,
-        cfg: dict,
-    ) -> tuple[np.ndarray, tuple[int, int, int, int]] | None:
-        """Find the highest-scored person detection in [seg_start, seg_end] frame range."""
-        cap = cv2.VideoCapture(clip_path)
-        if not cap.isOpened():
-            return None
-        cap.set(cv2.CAP_PROP_POS_FRAMES, seg_start)
-
-        climb_thresh = cfg["climb_threshold"]
-        min_area = cfg["min_area_frac"]
-        conf_thresh = cfg["conf_threshold"]
-
-        best_score = -1.0
-        best_frame: np.ndarray | None = None
-        best_bbox: tuple[int, int, int, int] | None = None
-
-        frame_idx = seg_start
-        while frame_idx <= seg_end:
-            ret, frame = cap.read()
-            if not ret:
-                break
-            if (frame_idx - seg_start) % sample_interval == 0:
-                fh, fw = frame.shape[:2]
-                blob, r, pad = preprocess(frame, self._infer_h, self._infer_w)
-                raw = self._det_session.run(
-                    None, {self._det_session.get_inputs()[0].name: blob}
-                )[0]
-                dets = postprocess_det(raw, r, pad, (fh, fw), conf_thresh)
-
-                for det in dets:
-                    x1, y1, x2, y2, conf = det[0], det[1], det[2], det[3], det[4]
-                    center_y = ((y1 + y2) / 2) / fh
-                    area_frac = (x2 - x1) * (y2 - y1) / (fw * fh)
-                    if center_y >= climb_thresh or area_frac < min_area:
-                        continue
-                    score = float(conf) * area_frac
-                    if score > best_score:
-                        best_score = score
-                        best_frame = frame.copy()
-                        best_bbox = (int(x1), int(y1), int(x2), int(y2))
-            frame_idx += 1
-
-        cap.release()
-        if best_frame is None or best_bbox is None:
-            return None
-        return best_frame, best_bbox
-
-    def _embed(self, crop: np.ndarray) -> np.ndarray | None:
-        """Run OSNet re-ID on a person crop → 1D embedding or None."""
-        try:
-            blob = preprocess_reid(crop)
-            out = self._reid_session.run(
-                None, {self._reid_session.get_inputs()[0].name: blob}
-            )[0]
-            return out[0].astype(np.float32)
-        except Exception as e:
-            logger.warning("Identifier: OSNet inference error: %s", e)
-            return None
+        return avg_emb.astype(np.float32), primary_thumb
 
     # ------------------------------------------------------------------
     # is_me assignment via DBSCAN (cosine distance)
@@ -288,13 +223,10 @@ class IdentifierStage(BaseStage):
             logger.warning("Identifier: all DBSCAN noise, marking all is_me=True")
             return
 
-        # "나" = 가장 많이 등장한 클러스터
-        # 동수일 때는 여러 영상에 걸쳐 나타난 클러스터 우선
+        # Score = (cluster size, video diversity) — prefer clips spanning multiple videos
         def cluster_score(lbl: int) -> tuple[int, int]:
-            member_clip_indices = [valid_idx[j] for j, l in enumerate(labels) if l == lbl]
-            size = len(member_clip_indices)
-            video_diversity = len({context.clips[i].raw_video_id for i in member_clip_indices})
-            return size, video_diversity
+            members = [valid_idx[j] for j, l in enumerate(labels) if l == lbl]
+            return len(members), len({context.clips[i].raw_video_id for i in members})
 
         largest = max(unique, key=cluster_score)
         me_set = {valid_idx[j] for j, lbl in enumerate(labels) if lbl == largest}
@@ -308,19 +240,18 @@ class IdentifierStage(BaseStage):
             logger.info("Identifier: clip %s → is_me=%s", clip.clip_id, clip.is_me)
 
     # ------------------------------------------------------------------
-    # Thumbnail annotation — coloured border after clustering
+    # Thumbnail annotation
     # ------------------------------------------------------------------
 
     @staticmethod
     def _annotate_thumbnails(context: PipelineContext) -> None:
-        """Draw border + label on primary thumbnail based on is_me result."""
         for clip in context.clips:
             if not clip.thumbnail_path or not os.path.exists(clip.thumbnail_path):
                 continue
             img = cv2.imread(clip.thumbnail_path)
             if img is None:
                 continue
-            color = (74, 175, 74) if clip.is_me else (100, 100, 100)  # BGR green / gray
+            color = (74, 175, 74) if clip.is_me else (100, 100, 100)
             thickness = 6 if clip.is_me else 3
             h, w = img.shape[:2]
             cv2.rectangle(img, (0, 0), (w - 1, h - 1), color, thickness)
@@ -339,43 +270,93 @@ class IdentifierStage(BaseStage):
 
             cv2.imwrite(clip.thumbnail_path, img)
 
-    # ------------------------------------------------------------------
-    # Fallback: save middle frame when no person detected
-    # ------------------------------------------------------------------
 
-    @staticmethod
-    def _save_middle_frame(clip_path: str, thumb_dir: str, clip_id: str) -> None:
-        cap = cv2.VideoCapture(clip_path)
-        if not cap.isOpened():
-            return
-        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        cap.set(cv2.CAP_PROP_POS_FRAMES, total // 2)
+# ------------------------------------------------------------------
+# Module-level helpers
+# ------------------------------------------------------------------
+
+def _best_frame_in_segment(
+    cap: cv2.VideoCapture,
+    seg_start: int,
+    seg_end: int,
+    sample_interval: int,
+    det_session,
+    infer_h: int,
+    infer_w: int,
+    cfg: dict,
+) -> tuple[np.ndarray, tuple[int, int, int, int]] | None:
+    """Scan [seg_start, seg_end] using an open cap; grab() skips non-sample frames."""
+    cap.set(cv2.CAP_PROP_POS_FRAMES, seg_start)
+
+    climb_thresh = cfg["climb_threshold"]
+    min_area = cfg["min_area_frac"]
+    conf_thresh = cfg["conf_threshold"]
+
+    best_score = -1.0
+    best_frame: np.ndarray | None = None
+    best_bbox: tuple[int, int, int, int] | None = None
+
+    frame_pos = seg_start
+    while frame_pos <= seg_end:
         ret, frame = cap.read()
-        if ret:
-            thumb_path = os.path.join(thumb_dir, f"{clip_id}_thumb_1.jpg")
-            cv2.imwrite(thumb_path, frame)
-        cap.release()
+        if not ret:
+            break
 
+        fh, fw = frame.shape[:2]
+        blob, r, pad = preprocess(frame, infer_h, infer_w)
+        raw = det_session.run(None, {det_session.get_inputs()[0].name: blob})[0]
+        dets = postprocess_det(raw, r, pad, (fh, fw), conf_thresh)
 
-# ------------------------------------------------------------------
-# Crop helper
-# ------------------------------------------------------------------
+        for det in dets:
+            x1, y1, x2, y2, conf = det[0], det[1], det[2], det[3], det[4]
+            center_y = ((y1 + y2) / 2) / fh
+            area_frac = (x2 - x1) * (y2 - y1) / (fw * fh)
+            if center_y >= climb_thresh or area_frac < min_area:
+                continue
+            score = float(conf) * area_frac
+            if score > best_score:
+                best_score = score
+                best_frame = frame.copy()
+                best_bbox = (int(x1), int(y1), int(x2), int(y2))
+
+        next_pos = frame_pos + sample_interval
+        if next_pos > seg_end:
+            break
+
+        # Skip frames [frame_pos+1 .. next_pos-1] without decoding
+        grabs = next_pos - (frame_pos + 1)
+        for _ in range(grabs):
+            if not cap.grab():
+                return (best_frame, best_bbox) if best_frame is not None else None
+
+        frame_pos = next_pos
+
+    return (best_frame, best_bbox) if best_frame is not None else None
+
 
 def _crop_person(
     frame: np.ndarray,
     bbox: tuple[int, int, int, int],
     pad_frac: float,
 ) -> np.ndarray | None:
-    """Return a padded crop of the person bbox, or None if degenerate."""
     fh, fw = frame.shape[:2]
     x1, y1, x2, y2 = bbox
     if x2 <= x1 or y2 <= y1:
         return None
     pad_x = int((x2 - x1) * pad_frac)
     pad_y = int((y2 - y1) * pad_frac)
-    cx1 = max(0, x1 - pad_x)
-    cy1 = max(0, y1 - pad_y)
-    cx2 = min(fw, x2 + pad_x)
-    cy2 = min(fh, y2 + pad_y)
-    crop = frame[cy1:cy2, cx1:cx2]
+    crop = frame[max(0, y1 - pad_y):min(fh, y2 + pad_y),
+                 max(0, x1 - pad_x):min(fw, x2 + pad_x)]
     return crop if crop.size > 0 else None
+
+
+def _save_middle_frame(clip_path: str, thumb_dir: str, clip_id: str) -> None:
+    cap = cv2.VideoCapture(clip_path)
+    if not cap.isOpened():
+        return
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    cap.set(cv2.CAP_PROP_POS_FRAMES, total // 2)
+    ret, frame = cap.read()
+    if ret:
+        cv2.imwrite(os.path.join(thumb_dir, f"{clip_id}_thumb_1.jpg"), frame)
+    cap.release()

@@ -2,6 +2,13 @@
 
 Uses YOLO26n-ONNX for person detection and ByteTrack for tracking.
 Segments are detected by monitoring each tracked person's vertical position.
+
+Performance notes
+-----------------
+- sample_fps=5: process every 6th frame at 30fps → half the YOLO calls vs 10fps
+- cap.grab() for skipped frames: avoids full BGR decode on non-sample frames
+- Batch YOLO inference (_INFER_BATCH frames per session.run call): amortises
+  CUDA kernel-launch overhead across a mini-batch
 """
 from __future__ import annotations
 
@@ -17,12 +24,14 @@ from boxmot import ByteTrack
 
 from analyzer.pipeline.base_stage import BaseStage
 from analyzer.pipeline.context import ClipInfo, PipelineContext
-from analyzer.pipeline.onnx_infer import load_session, preprocess, postprocess_det
+from analyzer.pipeline.onnx_infer import load_session, preprocess_batch, postprocess_det
 
 logger = logging.getLogger(__name__)
 
+_INFER_BATCH = 8   # frames per YOLO session.run call
+
 _DEFAULTS = {
-    "sample_fps": 10,            # inference FPS (10 or 15 recommended)
+    "sample_fps": 5,             # inference FPS — halved from 10; 0.2s resolution is fine
     "climb_threshold": 0.65,     # center_y < this → person is climbing
     "gap_tolerance_sec": 3.0,    # non-climbing gap allowed within a segment
     "padding_before_sec": 5.0,   # seconds prepended before detected segment start
@@ -86,7 +95,7 @@ class ClipperStage(BaseStage):
         return context
 
     # ------------------------------------------------------------------
-    # Segment detection
+    # Segment detection — grab()-based skip + batch YOLO
     # ------------------------------------------------------------------
 
     def _detect_segments(
@@ -108,30 +117,39 @@ class ClipperStage(BaseStage):
         )
 
         climbing_times: dict[int, list[float]] = {}
+
+        # Accumulator for batch inference
+        batch: list[tuple[float, np.ndarray, tuple[int, int]]] = []  # (t, frame, shape)
         frame_idx = 0
+
         while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-            if frame_idx % sample_interval == 0:
+            is_sample = (frame_idx % sample_interval == 0)
+            if is_sample:
+                ret, frame = cap.read()
+                if not ret:
+                    break
                 t = frame_idx / fps
-                fh = frame.shape[0]
-                blob, r, pad = preprocess(frame, self._infer_h, self._infer_w)
-                raw = self._session.run(None, {self._session.get_inputs()[0].name: blob})[0]
-                dets = postprocess_det(raw, r, pad, (fh, frame.shape[1]), cfg["conf_threshold"])
-                tracks = tracker.update(dets, frame)
-                for track in tracks:
-                    tid = int(track[4])
-                    center_y = ((track[1] + track[3]) / 2) / fh
-                    if center_y < cfg["climb_threshold"]:
-                        climbing_times.setdefault(tid, []).append(t)
+                batch.append((t, frame, frame.shape[:2]))
+
+                if len(batch) >= _INFER_BATCH:
+                    _run_batch(self._session, self._infer_h, self._infer_w,
+                               batch, tracker, climbing_times, cfg)
+                    batch = []
+            else:
+                if not cap.grab():
+                    break
             frame_idx += 1
+
+        # Flush remaining frames
+        if batch:
+            _run_batch(self._session, self._infer_h, self._infer_w,
+                       batch, tracker, climbing_times, cfg)
 
         cap.release()
         return _build_segments(climbing_times, duration_sec, cfg)
 
     # ------------------------------------------------------------------
-    # FFmpeg helper
+    # FFmpeg clip extraction
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -149,8 +167,35 @@ class ClipperStage(BaseStage):
 
 
 # ------------------------------------------------------------------
-# Module-level helper
+# Module-level helpers
 # ------------------------------------------------------------------
+
+def _run_batch(
+    session,
+    infer_h: int,
+    infer_w: int,
+    batch: list[tuple[float, np.ndarray, tuple[int, int]]],
+    tracker: ByteTrack,
+    climbing_times: dict[int, list[float]],
+    cfg: dict,
+) -> None:
+    """Run YOLO on a mini-batch, then feed results to ByteTrack sequentially."""
+    frames = [f for _, f, _ in batch]
+    shapes = [s for _, _, s in batch]
+
+    blob, r_list, pad_list = preprocess_batch(frames, infer_h, infer_w)
+    raw = session.run(None, {session.get_inputs()[0].name: blob})[0]  # [N, 300, 6]
+
+    for i, (t, frame, shape) in enumerate(batch):
+        fh = shape[0]
+        dets = postprocess_det(raw[i:i+1], r_list[i], pad_list[i], shape, cfg["conf_threshold"])
+        tracks = tracker.update(dets, frame)
+        for track in tracks:
+            tid = int(track[4])
+            center_y = ((track[1] + track[3]) / 2) / fh
+            if center_y < cfg["climb_threshold"]:
+                climbing_times.setdefault(tid, []).append(t)
+
 
 def _build_segments(
     climbing_times: dict[int, list[float]],

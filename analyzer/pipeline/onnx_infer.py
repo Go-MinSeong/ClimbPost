@@ -36,10 +36,34 @@ def load_session(model_path: str | Path) -> ort.InferenceSession:
     """Create an ONNX InferenceSession preferring CUDAExecutionProvider."""
     so = ort.SessionOptions()
     so.log_severity_level = 3
+    so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+    so.enable_mem_pattern = True
+    so.enable_cpu_mem_arena = True
     providers = [("CUDAExecutionProvider", {"device_id": 0}), "CPUExecutionProvider"]
     sess = ort.InferenceSession(str(model_path), sess_options=so, providers=providers)
     logger.info("ONNX session loaded (%s) → %s", Path(model_path).name, sess.get_providers()[0])
     return sess
+
+
+def preprocess_batch(
+    frames: list[np.ndarray],
+    target_h: int = _INFER_SIZE,
+    target_w: int = _INFER_SIZE,
+) -> tuple[np.ndarray, list[float], list[tuple[int, int]]]:
+    """Batch letterbox preprocessing.
+
+    Returns (blob [N,3,H,W], r_list, pad_list) matching the input frame order.
+    Each frame is independently letterboxed so mixed resolutions are supported.
+    """
+    blobs: list[np.ndarray] = []
+    r_list: list[float] = []
+    pad_list: list[tuple[int, int]] = []
+    for frame in frames:
+        b, r, p = preprocess(frame, target_h, target_w)
+        blobs.append(b)
+        r_list.append(r)
+        pad_list.append(p)
+    return np.concatenate(blobs, axis=0), r_list, pad_list
 
 
 def preprocess(

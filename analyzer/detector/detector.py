@@ -3,6 +3,11 @@
 Uses YOLO26n-pose ONNX to locate wrist keypoints, then analyses HSV colour
 of the surrounding region (where the climber's hands touch the holds/tape).
 Clips with is_me=False are skipped.
+
+Performance notes
+-----------------
+- cap.grab() for non-sample frames: avoids full BGR decode
+- Batch pose inference: collect all sample frames, single session.run call
 """
 from __future__ import annotations
 
@@ -17,7 +22,7 @@ from analyzer.pipeline.base_stage import BaseStage
 from analyzer.pipeline.context import PipelineContext
 from analyzer.pipeline.onnx_infer import (
     load_session,
-    preprocess,
+    preprocess_batch,
     postprocess_pose,
     get_wrist_points,
 )
@@ -40,11 +45,11 @@ _DEFAULTS = {
 
 # HSV tape colour table (OpenCV H: 0-180)
 _COLOR_TABLE: list[tuple[int, int, str]] = [
-    (20,  35,  "노랑"),   # yellow
-    (36,  85,  "초록"),   # green
-    (86, 130,  "파랑"),   # blue
-    (0,   10,  "빨강"),   # red low
-    (170, 180, "빨강"),   # red high
+    (20,  35,  "노랑"),
+    (36,  85,  "초록"),
+    (86, 130,  "파랑"),
+    (0,   10,  "빨강"),
+    (170, 180, "빨강"),
 ]
 
 
@@ -87,7 +92,7 @@ class DetectorStage(BaseStage):
         return context
 
     # ------------------------------------------------------------------
-    # Tape colour detection
+    # Batch pose inference + colour voting
     # ------------------------------------------------------------------
 
     def _detect_color(self, clip_path: str, cfg: dict) -> str | None:
@@ -96,33 +101,56 @@ class DetectorStage(BaseStage):
             return None
 
         fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         sample_interval = max(1, int(fps / cfg["sample_fps"]))
+        max_samples = cfg["max_samples"]
 
-        color_votes: dict[str, float] = {}
-        samples = 0
-        frame_idx = 0
+        # Collect up to max_samples frames
+        frames: list[np.ndarray] = []
+        shapes: list[tuple[int, int]] = []
+        frame_pos = 0
 
-        while True:
+        while frame_pos < total_frames and len(frames) < max_samples:
             ret, frame = cap.read()
             if not ret:
                 break
-            if frame_idx % sample_interval == 0 and samples < cfg["max_samples"]:
-                fh, fw = frame.shape[:2]
-                blob, r, pad = preprocess(frame, self._infer_h, self._infer_w)
-                raw = self._session.run(None, {self._session.get_inputs()[0].name: blob})[0]
-                persons = postprocess_pose(raw, r, pad, (fh, fw), cfg["conf_threshold"])
+            frames.append(frame)
+            shapes.append(frame.shape[:2])
 
-                if len(persons) > 0:
-                    for cx_px, cy_px, vis in get_wrist_points(persons[0], fh, fw):
-                        roi = _extract_roi(frame, cx_px, cy_px, fh, fw, cfg["roi_pad_ratio"])
-                        if roi is not None:
-                            color = _dominant_color(roi, cfg)
-                            if color:
-                                color_votes[color] = color_votes.get(color, 0.0) + vis
-                samples += 1
-            frame_idx += 1
+            next_pos = frame_pos + sample_interval
+            if next_pos >= total_frames or len(frames) >= max_samples:
+                break
+
+            # Skip non-sample frames without decoding
+            for _ in range(next_pos - (frame_pos + 1)):
+                if not cap.grab():
+                    break
+
+            frame_pos = next_pos
 
         cap.release()
+
+        if not frames:
+            return None
+
+        # Single batch pose inference
+        batch_blob, r_list, pad_list = preprocess_batch(frames, self._infer_h, self._infer_w)
+        raw_batch = self._session.run(
+            None, {self._session.get_inputs()[0].name: batch_blob}
+        )[0]  # [N, 300, 57]
+
+        color_votes: dict[str, float] = {}
+        for i, (frame, shape, r, pad) in enumerate(zip(frames, shapes, r_list, pad_list)):
+            fh, fw = shape
+            persons = postprocess_pose(raw_batch[i:i+1], r, pad, shape, cfg["conf_threshold"])
+            if len(persons) > 0:
+                for cx_px, cy_px, vis in get_wrist_points(persons[0], fh, fw):
+                    roi = _extract_roi(frame, cx_px, cy_px, fh, fw, cfg["roi_pad_ratio"])
+                    if roi is not None:
+                        color = _dominant_color(roi, cfg)
+                        if color:
+                            color_votes[color] = color_votes.get(color, 0.0) + vis
+
         if not color_votes:
             return None
         return max(color_votes, key=color_votes.get)  # type: ignore[arg-type]
@@ -153,12 +181,10 @@ def _dominant_color(roi: np.ndarray, cfg: dict) -> str | None:
     s_c = hsv[:, :, 1]
     v_c = hsv[:, :, 2]
 
-    # Black: low brightness
     black_ratio = np.count_nonzero(v_c < cfg["min_value"]) / max(h_c.size, 1)
     if black_ratio > 0.4:
         return "검정"
 
-    # Exclude skin tones
     skin = (h_c <= 20) & (s_c >= 30) & (s_c <= 170) & (v_c >= 80)
     valid = (s_c >= cfg["min_saturation"]) & (v_c >= cfg["min_value"]) & ~skin
     valid_h = h_c[valid]
