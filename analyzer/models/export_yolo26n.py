@@ -7,6 +7,7 @@ Run inside the analyzer container (or any env with ultralytics + torch):
 The output is saved to analyzer/models/yolo26n.onnx.
 """
 
+import shutil
 from pathlib import Path
 
 MODEL_DIR = Path(__file__).parent
@@ -21,18 +22,20 @@ def export() -> None:
     model.export(
         format="onnx",
         imgsz=640,
-        half=False,      # FP32; set True for FP16 on GPU-only deployments
-        dynamic=False,   # fixed batch=1 for deterministic input shape
-        simplify=True,   # ONNX simplifier reduces graph complexity
+        half=False,
+        dynamic=True,    # dynamic batch dimension required for batch inference
+        simplify=True,
         opset=17,
     )
 
-    # ultralytics writes the file next to the .pt source; move to models/
-    default_out = Path("yolo26n.onnx")
-    if default_out.exists() and default_out.resolve() != OUTPUT_PATH.resolve():
-        default_out.rename(OUTPUT_PATH)
-
-    print(f"Saved: {OUTPUT_PATH}")
+    # ultralytics writes the file next to the .pt source; copy to models/
+    for candidate in [Path("yolo26n.onnx"), Path("/app/yolo26n.onnx")]:
+        if candidate.exists() and candidate.resolve() != OUTPUT_PATH.resolve():
+            shutil.copy2(str(candidate), str(OUTPUT_PATH))
+            print(f"Saved: {OUTPUT_PATH}")
+            return
+    if OUTPUT_PATH.exists():
+        print(f"Saved: {OUTPUT_PATH}")
 
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ def export() -> None:
         format="onnx",
         imgsz=640,
         half=False,
-        dynamic=False,
+        dynamic=True,    # dynamic batch dimension required for batch inference
         simplify=True,
         opset=17,
     )
