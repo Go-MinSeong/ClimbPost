@@ -18,6 +18,11 @@ logger = logging.getLogger(__name__)
 
 _INFER_SIZE = 640
 
+# ImageNet mean/std for person re-ID models (OSNet, etc.)
+_REID_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+_REID_STD  = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+REID_H, REID_W = 256, 128  # standard re-ID crop size (tall × narrow)
+
 # COCO keypoint indices
 KPT_L_SHOULDER = 5
 KPT_R_SHOULDER = 6
@@ -57,6 +62,20 @@ def preprocess(
     )
     blob = padded[:, :, ::-1].transpose(2, 0, 1).astype(np.float32) / 255.0
     return np.expand_dims(blob, 0), r, (left, top)
+
+
+def preprocess_reid(
+    crop: np.ndarray, h: int = REID_H, w: int = REID_W
+) -> np.ndarray:
+    """Resize person crop → [1, 3, H, W] ImageNet-normalised float32.
+
+    Suitable for OSNet and other torchvision-based re-ID models.
+    """
+    resized = cv2.resize(crop, (w, h), interpolation=cv2.INTER_LINEAR)
+    rgb = resized[:, :, ::-1].astype(np.float32) / 255.0
+    rgb = (rgb - _REID_MEAN) / _REID_STD
+    blob = rgb.transpose(2, 0, 1)
+    return np.expand_dims(blob, 0).astype(np.float32)
 
 
 def postprocess_det(

@@ -1,14 +1,19 @@
 onnxruntime-gpu>=1.17
 onnx>=1.12.0,<2.0.0
 onnxslim>=0.1.71
+onnxscript>=0.1.0
 boxmot>=10.0
 opencv-python>=4.8
 numpy>=1.24
 scikit-learn>=1.3
 
-# used by Stage 2, 3 (classifier, detector) — pending ONNX migration
+# used by Stage 3, 4 — pending ONNX migration
 ultralytics>=8.0
 torch>=2.0
+torchvision>=0.15
+
+# used by export_osnet.py (person re-ID model export, one-time)
+torchreid>=1.4.0
 
 # used by export_yolo26n.py
 ffmpeg-python>=0.2
